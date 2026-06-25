@@ -1,0 +1,46 @@
+export type AnalysisMode = "value" | "growth";
+
+export interface IngestRequest {
+  ticker: string;
+}
+
+export interface IngestResponse {
+  status: string;
+  ticker: string;
+  filing_type: string;
+  message: string;
+  chunks_processed: number;
+}
+
+export interface QueryRequest {
+  ticker: string;
+  question: string;
+  mode: AnalysisMode;
+}
+
+export interface Citation {
+  text: string;
+  source: string;
+  page?: string;
+}
+
+export interface QueryResponse {
+  answer: string;
+  mode: AnalysisMode;
+  ticker: string;
+  citations: Citation[];
+}
+
+export interface HealthResponse {
+  status: string;
+  version: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations?: Citation[];
+  mode?: AnalysisMode;
+  timestamp: Date;
+}
