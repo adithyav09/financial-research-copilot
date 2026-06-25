@@ -1,9 +1,30 @@
 """
 RAG service for querying filings with analysis mode context.
-Placeholder implementation.
+Real implementation with LCEL chain, ChromaDB, and OpenAI.
 """
 
+from langchain_chroma import Chroma
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
 from app.models.schemas import AnalysisMode, Citation
+from app.core.config import settings
+from app.core.database import get_chroma_client, get_supabase_client
+
+
+# ============================================================
+# COURSE 4 UPGRADE: Advanced Retrievers
+# Option A — Multi-Query:
+#   from langchain.retrievers.multi_query import MultiQueryRetriever
+#   retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
+# Option B — Contextual Compression:
+#   from langchain.retrievers import ContextualCompressionRetriever
+#   from langchain.retrievers.document_compressors import LLMChainExtractor
+#   compressor = LLMChainExtractor.from_llm(llm)
+#   retriever = ContextualCompressionRetriever(base_compressor=compressor, base_retriever=base_retriever)
+# ============================================================
 
 
 MODE_SYSTEM_PROMPTS = {
@@ -20,9 +41,31 @@ MODE_SYSTEM_PROMPTS = {
 }
 
 
+def format_docs(docs):
+    """Format retrieved documents for the prompt."""
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+async def check_ticker_ingested(ticker: str) -> bool:
+    """Check if a ticker has been ingested into ChromaDB."""
+    try:
+        chroma_client = get_chroma_client()
+        collections = chroma_client.list_collections()
+        
+        # Look for collections that match the ticker pattern
+        ticker_collections = [
+            coll.name for coll in collections 
+            if coll.name.startswith(f"{ticker.upper()}_10K_")
+        ]
+        
+        return len(ticker_collections) > 0
+    except Exception:
+        return False
+
+
 async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
     """
-    Query the vector store and generate a mode-aware answer.
+    Query the vector store and generate a mode-aware answer using LCEL chain.
     
     Args:
         ticker: Company ticker to scope the search
@@ -32,68 +75,76 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
     Returns:
         dict with answer and citations
     """
-    # Placeholder: In production, this will:
-    # 1. Retrieve relevant chunks from ChromaDB filtered by ticker
-    # 2. Build prompt with mode-specific system prompt
-    # 3. Call LLM with retrieved context
-    # 4. Parse and return answer with citations
-    t = ticker.upper()
-
-    if mode == AnalysisMode.VALUE:
-        answer = (
-            f"{t}'s 10-K reveals a business with solid cash generation characteristics. "
-            f"Free cash flow reached $99.5B, providing significant balance sheet flexibility. "
-            f"Gross margins expanded 80bps to 44.1%, indicating improving unit economics. "
-            f"However, long-term debt of $95.3B warrants attention — the net cash position of $49.0B "
-            f"provides a moderate buffer. Key downside risks include regulatory headwinds and "
-            f"macro-driven demand softness, both cited prominently in the Risk Factors section. "
-            f"The $77.5B buyback program signals management confidence but also limits financial flexibility. "
-            f"From a value perspective, the question is whether current multiples adequately price in these risks."
+    try:
+        # Step 1: Query Supabase for the latest collection name
+        supabase = get_supabase_client()
+        response = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker.upper()).eq("status", "ready").order("created_at", desc=True).limit(1).execute()
+        
+        if not response.data:
+            raise ValueError(f"No ready ingestion found for ticker {ticker}")
+        
+        ingestion_job = response.data[0]
+        collection_name = ingestion_job["chroma_collection"]
+        
+        # Step 2: Load the ChromaDB collection
+        embeddings = OpenAIEmbeddings(
+            model=settings.embedding_model,
+            api_key=settings.openai_api_key
         )
-        citations = [
-            Citation(
-                text="Free cash flow was $99.5 billion, an increase of $20.1 billion or 25% compared to the prior year.",
-                source=f"{t} 10-K 2023 — Liquidity and Capital Resources",
-                page="48",
-            ),
-            Citation(
-                text="Long-term debt, net of issuance costs, totaled $95.3 billion as of December 31, 2023.",
-                source=f"{t} 10-K 2023 — Consolidated Balance Sheet",
-                page="61",
-            ),
-            Citation(
-                text="Gross margin was 44.1% in 2023 compared to 43.3% in 2022, driven by favorable product mix and cost efficiencies.",
-                source=f"{t} 10-K 2023 — Results of Operations",
-                page="39",
-            ),
-        ]
-    else:
-        answer = (
-            f"{t}'s 10-K paints a compelling growth picture. Net revenues grew 8% YoY, "
-            f"outpacing the broader market. R&D spend of $29.9B — approximately 12% of revenue — "
-            f"signals sustained investment in next-generation products and platforms. "
-            f"Services revenue continues to diversify the top line, reducing hardware cyclicality. "
-            f"International expansion and emerging market penetration represent meaningful TAM upside. "
-            f"The primary growth risk is execution: maintaining innovation pace while scaling globally. "
-            f"M&A optionality backed by the $49.0B net cash position could further accelerate growth vectors "
-            f"in AI, health tech, or enterprise software."
+        
+        chroma_client = get_chroma_client()
+        vectorstore = Chroma(
+            client=chroma_client,
+            collection_name=collection_name,
+            embedding_function=embeddings
         )
-        citations = [
-            Citation(
-                text="Net revenues increased 8% year-over-year to $383.3 billion, with Services revenue reaching a record $85.2 billion.",
-                source=f"{t} 10-K 2023 — Results of Operations",
-                page="38",
-            ),
-            Citation(
-                text="Research and development expense was $29.9 billion, reflecting continued investment in new technologies and product development.",
-                source=f"{t} 10-K 2023 — Operating Expenses",
-                page="41",
-            ),
-            Citation(
-                text="The Company's goal is to offer products and services that continue to introduce compelling new technologies to the market.",
-                source=f"{t} 10-K 2023 — Business Overview",
-                page="2",
-            ),
-        ]
-
-    return {"answer": answer, "citations": citations}
+        
+        # Step 3: Create retriever
+        retriever = vectorstore.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": settings.retrieval_k}
+        )
+        
+        # Step 4: Build prompt template
+        system_prompt = MODE_SYSTEM_PROMPTS[mode] + " Always cite specific sections and direct quotes from the filing."
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "Context from {ticker} 10-K filing:\n\n{context}\n\nQuestion: {question}")
+        ])
+        
+        # Step 5: Initialize LLM
+        llm = ChatOpenAI(
+            model=settings.llm_model,
+            temperature=0,
+            api_key=settings.openai_api_key
+        )
+        
+        # Step 6: Build LCEL chain
+        chain = (
+            {"context": retriever | format_docs, "question": RunnablePassthrough(), "ticker": lambda x: ticker.upper()}
+            | prompt
+            | llm
+            | StrOutputParser()
+        )
+        
+        # Step 7: Execute chain
+        answer = await chain.ainvoke(question)
+        
+        # Step 8: Get retrieved documents for citations
+        retrieved_docs = await retriever.ainvoke(question)
+        citations = []
+        
+        for doc in retrieved_docs:
+            metadata = doc.metadata
+            citation = Citation(
+                text=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
+                source=f"{metadata['ticker']} {metadata['filing_type']} {metadata['filing_year']} — {metadata['source']}",
+                page=str(metadata.get('chunk_index', 'N/A'))
+            )
+            citations.append(citation)
+        
+        return {"answer": answer, "citations": citations}
+        
+    except Exception as e:
+        raise Exception(f"Failed to query filing for {ticker}: {str(e)}")

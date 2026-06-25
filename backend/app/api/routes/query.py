@@ -1,7 +1,9 @@
+import time
 from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import QueryRequest, QueryResponse
-from app.services.rag_service import query_filing
+from app.services.rag_service import query_filing, check_ticker_ingested
+from app.core.database import get_supabase_client
 
 router = APIRouter()
 
@@ -15,8 +17,35 @@ async def query_10k(request: QueryRequest):
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question is required")
 
+    start_time = time.time()
+    
     try:
+        # Check if ticker has been ingested
+        is_ingested = await check_ticker_ingested(ticker)
+        if not is_ingested:
+            raise HTTPException(status_code=404, detail="Ticker not ingested. Please ingest first.")
+        
+        # Query the filing
         result = await query_filing(ticker, request.question, request.mode)
+        
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Log to Supabase
+        try:
+            supabase = get_supabase_client()
+            log_data = {
+                "ticker": ticker,
+                "question": request.question,
+                "mode": request.mode.value,
+                "answer_length": len(result["answer"]),
+                "citations_count": len(result["citations"]),
+                "latency_ms": latency_ms
+            }
+            supabase.table("query_logs").insert(log_data).execute()
+        except Exception as log_error:
+            # Don't fail the request if logging fails
+            print(f"Failed to log query: {str(log_error)}")
 
         return QueryResponse(
             answer=result["answer"],
@@ -24,5 +53,7 @@ async def query_10k(request: QueryRequest):
             ticker=ticker,
             citations=result["citations"],
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to query filing: {str(e)}")

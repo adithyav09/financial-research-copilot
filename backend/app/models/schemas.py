@@ -8,6 +8,13 @@ class AnalysisMode(str, Enum):
     GROWTH = "growth"
 
 
+class IngestionStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
 class IngestRequest(BaseModel):
     ticker: str
 
@@ -42,3 +49,15 @@ class QueryResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     version: str
+
+
+class StatusResponse(BaseModel):
+    ticker: str
+    status: IngestionStatus
+    filing_type: Optional[str] = None
+    filing_date: Optional[str] = None
+    filing_year: Optional[int] = None
+    chunk_count: int = 0
+    chroma_collection: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: Optional[str] = None
