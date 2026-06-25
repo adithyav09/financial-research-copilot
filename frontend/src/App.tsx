@@ -41,7 +41,7 @@ export default function App() {
     } finally {
       setIsIngesting(false);
     }
-  };
+  }
 
   const handleSend = async (question: string) => {
     const userMsg: ChatMessage = {

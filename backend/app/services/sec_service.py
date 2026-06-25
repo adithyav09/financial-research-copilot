@@ -3,6 +3,7 @@ SEC service for fetching 10-K filings from SEC EDGAR.
 Real implementation with retry logic and HTML parsing.
 """
 
+import asyncio
 import httpx
 import re
 from bs4 import BeautifulSoup
@@ -29,12 +30,15 @@ async def fetch_latest_10k(ticker: str) -> dict:
     """
     headers = {"User-Agent": settings.sec_user_agent}
     
-    async with httpx.AsyncClient(headers=headers, timeout=30.0) as client:
+    async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
         try:
             # Step 1: Resolve ticker to CIK
             search_url = f"https://efts.sec.gov/LATEST/search-index?q=%22{ticker}%22&forms=10-K"
             response = await client.get(search_url)
             response.raise_for_status()
+            
+            # Rate limit: wait 0.5 seconds between requests
+            await asyncio.sleep(0.5)
             
             search_data = response.json()
             if not search_data.get("hits") or not search_data["hits"]["hits"]:
@@ -49,12 +53,27 @@ async def fetch_latest_10k(ticker: str) -> dict:
             response = await client.get(submissions_url)
             response.raise_for_status()
             
+            # Rate limit: wait 0.5 seconds between requests
+            await asyncio.sleep(0.5)
+            
             submissions_data = response.json()
             
             # Step 3: Find most recent 10-K
             recent_filings = submissions_data["filings"]["recent"]
+            
+            # Convert dict to list of dictionaries
+            filing_list = []
+            for i in range(len(recent_filings["accessionNumber"])):
+                filing = {
+                    "accessionNumber": recent_filings["accessionNumber"][i],
+                    "filingDate": recent_filings["filingDate"][i],
+                    "form": recent_filings["form"][i],
+                    "primaryDocument": recent_filings["primaryDocument"][i]
+                }
+                filing_list.append(filing)
+            
             tenk_filings = [
-                f for f in recent_filings 
+                f for f in filing_list 
                 if f["form"] == "10-K"
             ]
             
@@ -71,6 +90,9 @@ async def fetch_latest_10k(ticker: str) -> dict:
             
             response = await client.get(index_url)
             response.raise_for_status()
+            
+            # Rate limit: wait 0.5 seconds between requests
+            await asyncio.sleep(0.5)
             
             # Step 5: Parse index to find primary document
             soup = BeautifulSoup(response.content, "html.parser")
@@ -102,6 +124,9 @@ async def fetch_latest_10k(ticker: str) -> dict:
             
             response = await client.get(doc_url)
             response.raise_for_status()
+            
+            # Rate limit: wait 0.5 seconds between requests
+            await asyncio.sleep(0.5)
             
             # Step 7: Clean HTML content
             soup = BeautifulSoup(response.content, "html.parser")

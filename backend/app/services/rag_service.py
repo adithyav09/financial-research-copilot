@@ -55,7 +55,7 @@ async def check_ticker_ingested(ticker: str) -> bool:
         # Look for collections that match the ticker pattern
         ticker_collections = [
             coll.name for coll in collections 
-            if coll.name.startswith(f"{ticker.upper()}_10K_")
+            if coll.name.startswith(f"{ticker.upper()}_10-K_")
         ]
         
         return len(ticker_collections) > 0

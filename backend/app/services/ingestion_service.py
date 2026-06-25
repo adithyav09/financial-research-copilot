@@ -3,7 +3,7 @@ Ingestion service for processing and storing filing documents in ChromaDB.
 Real implementation with text splitting, embeddings, and vector storage.
 """
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
