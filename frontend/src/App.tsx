@@ -43,11 +43,11 @@ export default function App() {
     setIsQuerying(true);
     try {
       const res = await api.query({ ticker: t, question, mode, session_id: sessionId });
-      const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date() };
+      const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date(), question };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date() }]);
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date(), question }]);
     } finally {
       setIsQuerying(false);
     }
@@ -133,7 +133,7 @@ export default function App() {
       setIsQuerying(true);
       try {
         const res = await api.query({ ticker, question, mode, session_id: sessionId });
-        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date() }]);
+        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date(), question }]);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date() }]);

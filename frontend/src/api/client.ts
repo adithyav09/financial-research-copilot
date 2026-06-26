@@ -68,5 +68,5 @@ export const api = {
     }),
 
   xbrl: (ticker: string) =>
-    request<XBRLFinancials>(`/api/market-data/${ticker}/xbrl`),
+    request<XBRLFinancials>(`/api/financials/${ticker}`),
 };

@@ -272,7 +272,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, ingestP
               </div>
               {/* P8: inline charts after assistant messages */}
               {msg.role === "assistant" && xbrlData && (
-                <InlineCharts answer={msg.content} xbrl={xbrlData} ticker={ticker} />
+                <InlineCharts answer={msg.content} question={msg.question} xbrl={xbrlData} ticker={ticker} />
               )}
               {/* P6: suggestions chips — only after last assistant message */}
               {msg.role === "assistant" && msgIdx === messages.length - 1 && !isLoading && (

@@ -116,4 +116,5 @@ export interface ChatMessage {
   citations?: Citation[];
   mode?: AnalysisMode;
   timestamp: Date;
+  question?: string;
 }

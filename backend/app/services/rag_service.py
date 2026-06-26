@@ -13,6 +13,8 @@ from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 from app.models.schemas import AnalysisMode, Citation
 from app.core.config import settings
 from app.core.database import get_chroma_client, get_supabase_client
+from app.services.market_service import fetch_market_data
+from app.services.xbrl_service import fetch_xbrl_financials
 
 
 DISCLAIMER = (
@@ -28,11 +30,11 @@ NO_ADVICE_INSTRUCTION = (
 )
 
 CONTEXT_ONLY_INSTRUCTION = (
-    "Answer ONLY using the information in the provided context. "
-    "If the filing does not directly answer the question, do NOT say you cannot find it — "
-    "instead, present the most relevant financial data from the context that would help "
-    "a user reason about the question themselves. "
-    "Never use outside knowledge or make claims not supported by the filing."
+    "Answer using the Live Market & Financial Data block AND the 10-K filing context provided. "
+    "Prefer the live XBRL historical series for quantitative financial trends (revenue, cash flow, EPS, etc.). "
+    "Use the 10-K filing chunks for qualitative detail, risk factors, strategy, and management commentary. "
+    "If a metric appears in both sources, cite the 10-K chunk with [N] and also reference the live data. "
+    "Never fabricate numbers or use outside knowledge beyond what is provided."
 )
 
 CITATION_INSTRUCTION = (
@@ -105,6 +107,60 @@ def format_docs(docs):
     )
 
 
+def _format_market_context(ticker: str, market: dict | None, xbrl: dict | None) -> str:
+    """Build a concise live-data context block to prepend to the RAG context."""
+    lines = [f"=== Live Market & Financial Data for {ticker} ==="]
+
+    if market:
+        def _f(v): return f"{v:,.2f}" if isinstance(v, float) else str(v)
+        fields = [
+            ("Company", market.get("company_name")),
+            ("Sector", market.get("sector")),
+            ("Current Price", f"${_f(market['current_price'])}" if market.get("current_price") else None),
+            ("Market Cap", f"${market['market_cap']/1e9:.1f}B" if market.get("market_cap") else None),
+            ("P/E Ratio", _f(market["pe_ratio"]) if market.get("pe_ratio") else None),
+            ("Forward P/E", _f(market["forward_pe"]) if market.get("forward_pe") else None),
+            ("EV/EBITDA", _f(market["ev_to_ebitda"]) if market.get("ev_to_ebitda") else None),
+            ("Price/Book", _f(market["price_to_book"]) if market.get("price_to_book") else None),
+            ("52w High", f"${_f(market['fifty_two_week_high'])}" if market.get("fifty_two_week_high") else None),
+            ("52w Low", f"${_f(market['fifty_two_week_low'])}" if market.get("fifty_two_week_low") else None),
+            ("Beta", _f(market["beta"]) if market.get("beta") else None),
+            ("Dividend Yield", f"{market['dividend_yield']*100:.2f}%" if market.get("dividend_yield") else None),
+            ("Analyst Rec.", market.get("analyst_recommendation")),
+        ]
+        for label, val in fields:
+            if val:
+                lines.append(f"  {label}: {val}")
+
+    def _series_summary(name: str, series: list | None) -> str | None:
+        if not series:
+            return None
+        pts = [f"{p['year']}: ${p['value']/1e9:.2f}B" if abs(p['value']) >= 1e9
+               else f"{p['year']}: ${p['value']/1e6:.0f}M"
+               for p in series if p.get('value') is not None]
+        return f"  {name}: " + ", ".join(pts) if pts else None
+
+    if xbrl:
+        series_map = [
+            ("Revenue", xbrl.get("revenue_series")),
+            ("Net Income", xbrl.get("net_income_series")),
+            ("Operating Cash Flow", xbrl.get("operating_cash_flow_series")),
+            ("Free Cash Flow", xbrl.get("free_cash_flow_series")),
+            ("Gross Profit", xbrl.get("gross_profit_series")),
+            ("Operating Income", xbrl.get("operating_income_series")),
+            ("Total Debt", xbrl.get("total_debt_series")),
+            ("Shareholders Equity", xbrl.get("shareholders_equity_series")),
+            ("EPS (Diluted)", xbrl.get("eps_diluted_series")),
+        ]
+        xbrl_lines = [s for _, series in series_map for s in [_series_summary(_, series)] if s]
+        if xbrl_lines:
+            lines.append("\n--- Historical Financials (from SEC EDGAR XBRL) ---")
+            lines.extend(xbrl_lines)
+
+    lines.append("=== End Live Data ===")
+    return "\n".join(lines)
+
+
 async def check_ticker_ingested(ticker: str) -> bool:
     """Check if a ticker has been ingested into ChromaDB."""
     try:
@@ -173,7 +229,21 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
         )
         retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
 
-        # Step 5: Build prompt template
+        # Step 5: Fetch live market + XBRL data (best-effort, never fail the query)
+        market_data = None
+        xbrl_data = None
+        try:
+            market_data = await fetch_market_data(ticker)
+        except Exception:
+            pass
+        try:
+            xbrl_data = await fetch_xbrl_financials(ticker)
+        except Exception:
+            pass
+
+        live_context = _format_market_context(ticker, market_data, xbrl_data)
+
+        # Step 6: Build prompt template
         system_prompt = (
             MODE_SYSTEM_PROMPTS[mode]
             + "\n\n" + CONTEXT_ONLY_INSTRUCTION
@@ -184,6 +254,7 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", (
+                "{live_context}\n\n"
                 "Context from {ticker} 10-K filing "
                 "(each passage is numbered for inline citations):\n\n"
                 "{context}\n\n"
@@ -191,18 +262,23 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
             ))
         ])
         
-        # Step 6: Build LCEL chain
+        # Step 7: Build LCEL chain
         chain = (
-            {"context": retriever | format_docs, "question": RunnablePassthrough(), "ticker": lambda x: ticker.upper()}
+            {
+                "context": retriever | format_docs,
+                "question": RunnablePassthrough(),
+                "ticker": lambda x: ticker.upper(),
+                "live_context": lambda x: live_context,
+            }
             | prompt
             | llm
             | StrOutputParser()
         )
-        
-        # Step 7: Execute chain
+
+        # Step 8: Execute chain
         answer = await chain.ainvoke(question)
         
-        # Step 8: Get retrieved documents for citations
+        # Step 9: Get retrieved documents for citations
         retrieved_docs = await retriever.ainvoke(question)
         citations = []
         
