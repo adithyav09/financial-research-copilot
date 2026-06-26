@@ -32,24 +32,26 @@ async def fetch_latest_10k(ticker: str) -> dict:
     
     async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
         try:
-            # Step 1: Resolve ticker to CIK
-            search_url = f"https://efts.sec.gov/LATEST/search-index?q=%22{ticker}%22&forms=10-K"
-            response = await client.get(search_url)
+            # Step 1: Resolve ticker to CIK using official SEC ticker map
+            tickers_url = "https://www.sec.gov/files/company_tickers.json"
+            response = await client.get(tickers_url)
             response.raise_for_status()
             
             # Rate limit: wait 0.5 seconds between requests
             await asyncio.sleep(0.5)
             
-            search_data = response.json()
-            if not search_data.get("hits") or not search_data["hits"]["hits"]:
-                raise ValueError(f"No 10-K filings found for ticker {ticker}")
+            tickers_data = response.json()
+            cik = None
+            for entry in tickers_data.values():
+                if entry["ticker"].upper() == ticker.upper():
+                    cik = str(entry["cik_str"]).zfill(10)
+                    break
             
-            # Get CIK from first hit
-            cik = search_data["hits"]["hits"][0]["_source"]["ciks"][0]
+            if not cik:
+                raise ValueError(f"Ticker {ticker} not found in SEC company list")
             
             # Step 2: Get filing history
-            cik_padded = str(cik).zfill(10)
-            submissions_url = f"https://data.sec.gov/submissions/CIK{cik_padded}.json"
+            submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
             response = await client.get(submissions_url)
             response.raise_for_status()
             
