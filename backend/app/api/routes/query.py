@@ -51,7 +51,7 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
             # Atomically increment tokens_consumed in profiles
             supabase.rpc(
                 "increment_tokens_consumed",
-                {"p_user_id": user.user_id, "p_tokens": tokens_used},
+                {"p_user_id": str(user.user_id), "p_tokens": tokens_used},
             ).execute()
         except Exception as log_error:
             print(f"Failed to log query/update tokens: {str(log_error)}")

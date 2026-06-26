@@ -32,7 +32,14 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { setQuery(value); }, [value]);
+  // Only sync from parent when it changes externally (e.g. onTickerChange from sidebar clear)
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      setQuery(value);
+    }
+  }, [value]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -65,7 +72,7 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.toUpperCase();
     setQuery(val);
-    onChange(val);
+    // Don't propagate every keystroke — only propagate on selection or Enter
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => search(val), 180);
   };
@@ -76,12 +83,33 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
     setOpen(false);
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && results[highlighted]) {
+        select(results[highlighted]);
+      } else {
+        // Commit raw typed value on Enter even without dropdown
+        const val = (e.target as HTMLInputElement).value.toUpperCase();
+        if (val) { onChange(val); setOpen(false); prevValueRef.current = val; }
+      }
+      return;
+    }
     if (!open) return;
     if (e.key === "ArrowDown") { e.preventDefault(); setHighlighted(h => Math.min(h + 1, results.length - 1)); }
     if (e.key === "ArrowUp")   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); }
-    if (e.key === "Enter" && results[highlighted]) { e.preventDefault(); select(results[highlighted]); }
     if (e.key === "Escape") setOpen(false);
+  };
+
+  const handleBlur = () => {
+    // Commit on blur so pasting or typing without dropdown still works
+    setTimeout(() => {
+      setOpen(false);
+      if (query && query !== value) {
+        prevValueRef.current = query;
+        onChange(query);
+      }
+    }, 150);
   };
 
   return (
@@ -95,6 +123,7 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
           value={query}
           onChange={handleInput}
           onKeyDown={handleKey}
+          onBlur={handleBlur}
           onFocus={() => query.length > 0 && results.length > 0 && setOpen(true)}
           placeholder={placeholder}
           maxLength={10}
