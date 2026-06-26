@@ -153,20 +153,9 @@ export default function App() {
 
   const handleSend = async (question: string) => {
     if (!ticker.trim()) return;
-    if (ingestPhase === "ready") {
-      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date() };
-      setMessages(prev => [...prev, userMsg]);
-      setIsQuerying(true);
-      try {
-        const res = await api.query({ ticker, question, mode, session_id: sessionId });
-        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date(), question }]);
-        refreshProfile().catch(() => {});
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date() }]);
-      } finally {
-        setIsQuerying(false);
-      }
+    // Live questions bypass ingestion entirely; filing questions always verify ingestion first
+    if (ingestPhase === "ready" && isLiveQuestion(question)) {
+      await fireQuery(question, ticker);
       return;
     }
     await ensureIngestedThenQuery(question, ticker);
