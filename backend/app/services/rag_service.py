@@ -31,10 +31,15 @@ NO_ADVICE_INSTRUCTION = (
 
 CONTEXT_ONLY_INSTRUCTION = (
     "Answer using the Live Market & Financial Data block AND the 10-K filing context provided. "
-    "Prefer the live XBRL historical series for quantitative financial trends (revenue, cash flow, EPS, etc.). "
-    "Use the 10-K filing chunks for qualitative detail, risk factors, strategy, and management commentary. "
-    "If a metric appears in both sources, cite the 10-K chunk with [N] and also reference the live data. "
-    "Never fabricate numbers or use outside knowledge beyond what is provided."
+    "Data priority order:\n"
+    "1. 'Latest Financials (Yahoo Finance)' TTM/MRQ block — use this as the PRIMARY source for any "
+    "   current or recent financial figures (revenue, net income, cash flow, debt, etc.). "
+    "   Always state the period (e.g. 'as of [date]') when citing these numbers.\n"
+    "2. 'Historical Financials (SEC EDGAR XBRL)' — use for multi-year trends and year-over-year comparisons.\n"
+    "3. 'Recent News Headlines' — use to reference recent events, catalysts, or developments.\n"
+    "4. 10-K filing chunks — use for qualitative detail, risk factors, strategy, and management commentary. "
+    "   Cite these with [N] inline markers.\n"
+    "Never fabricate numbers or use outside knowledge beyond what is provided in the data blocks."
 )
 
 CITATION_INSTRUCTION = (
@@ -140,6 +145,34 @@ def _format_market_context(ticker: str, market: dict | None, xbrl: dict | None) 
                for p in series if p.get('value') is not None]
         return f"  {name}: " + ", ".join(pts) if pts else None
 
+    # --- TTM financials from Yahoo Finance (most recent annual/quarterly) ---
+    if market:
+        ttm = market.get("ttm") or {}
+        ttm_lines = []
+        period = ttm.get("ttm_period") or ttm.get("mrq_period")
+        if period:
+            ttm_lines.append(f"\n--- Latest Financials (Yahoo Finance, period ending {period}) ---")
+        pairs = [
+            ("TTM Revenue", "ttm_revenue"),
+            ("TTM Gross Profit", "ttm_gross_profit"),
+            ("TTM Operating Income", "ttm_operating_income"),
+            ("TTM Net Income", "ttm_net_income"),
+            ("TTM EBITDA", "ttm_ebitda"),
+            ("TTM Operating Cash Flow", "ttm_operating_cashflow"),
+            ("TTM Free Cash Flow", "ttm_free_cashflow"),
+            ("TTM CapEx", "ttm_capex"),
+            ("MRQ Total Assets", "mrq_total_assets"),
+            ("MRQ Total Debt", "mrq_total_debt"),
+            ("MRQ Cash", "mrq_cash"),
+            ("MRQ Stockholders Equity", "mrq_stockholders_equity"),
+        ]
+        for label, key in pairs:
+            val = ttm.get(key)
+            if val:
+                ttm_lines.append(f"  {label}: {val}")
+        if len(ttm_lines) > 1:
+            lines.extend(ttm_lines)
+
     if xbrl:
         series_map = [
             ("Revenue", xbrl.get("revenue_series")),
@@ -154,8 +187,19 @@ def _format_market_context(ticker: str, market: dict | None, xbrl: dict | None) 
         ]
         xbrl_lines = [s for _, series in series_map for s in [_series_summary(_, series)] if s]
         if xbrl_lines:
-            lines.append("\n--- Historical Financials (from SEC EDGAR XBRL) ---")
+            lines.append("\n--- Historical Financials (from SEC EDGAR XBRL, annual) ---")
             lines.extend(xbrl_lines)
+
+    # --- Recent news headlines ---
+    if market:
+        news = market.get("news") or []
+        if news:
+            lines.append("\n--- Recent News Headlines (Yahoo Finance) ---")
+            for item in news[:6]:
+                date = item.get("date", "")
+                pub = item.get("publisher", "")
+                title = item.get("title", "")
+                lines.append(f"  [{date}] {title} ({pub})")
 
     lines.append("=== End Live Data ===")
     return "\n".join(lines)

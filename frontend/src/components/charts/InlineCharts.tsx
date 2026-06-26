@@ -59,93 +59,50 @@ function DashboardModal({ xbrl, ticker, onClose }: { xbrl: XBRLFinancials; ticke
   );
 }
 
-export default function InlineCharts({ answer, question = "", xbrl, ticker }: Props) {
+export default function InlineCharts({ answer: _answer, question = "", xbrl, ticker }: Props) {
   const [showDashboard, setShowDashboard] = useState(false);
 
-  const seen = new Set<string>();
   const charts: React.ReactNode[] = [];
-  let chartCount = 0;
 
-  // First pass: check user question for explicit chart requests — inject immediately
+  // Only render charts when the user EXPLICITLY asks for one via chart/graph/show/plot keywords
   const qLower = question.toLowerCase();
-  const questionWantsRevenue = hasAny(qLower, "revenue", "sales", "net income");
-  const questionWantsFCF    = hasAny(qLower, "free cash flow", "fcf", "cash flow");
-  const questionWantsMargin = hasAny(qLower, "gross margin", "operating margin", "margin");
-  const questionWantsDebt   = hasAny(qLower, "debt", "leverage", "equity", "balance sheet");
-  const questionWantsEPS    = hasAny(qLower, "eps", "earnings per share", "diluted");
-  const questionWantsChart  = hasAny(qLower, "chart", "graph", "show", "plot", "visuali");
+  const wantsChart = hasAny(qLower, "chart", "graph", "show me", "plot", "visuali", "display");
 
-  if ((questionWantsFCF || (questionWantsChart && hasAny(qLower, "cash"))) && xbrl.free_cash_flow_series && !seen.has("fcf")) {
-    seen.add("fcf");
-    charts.push(<FreeCashFlowChart key="fcf" data={xbrl.free_cash_flow_series} ticker={ticker} />);
-    chartCount++;
-  }
-  if ((questionWantsRevenue || (questionWantsChart && hasAny(qLower, "revenue", "income"))) && xbrl.revenue_series && xbrl.net_income_series && !seen.has("revenue")) {
-    seen.add("revenue");
-    charts.push(<RevenueNetIncomeChart key="rev" revenue={xbrl.revenue_series} netIncome={xbrl.net_income_series} ticker={ticker} />);
-    chartCount++;
-  }
-  if ((questionWantsMargin || (questionWantsChart && hasAny(qLower, "margin"))) && xbrl.revenue_series && xbrl.gross_profit_series && xbrl.operating_income_series && !seen.has("margin")) {
-    seen.add("margin");
-    charts.push(<MarginTrendsChart key="margin" revenue={xbrl.revenue_series} grossProfit={xbrl.gross_profit_series} operatingIncome={xbrl.operating_income_series} ticker={ticker} />);
-    chartCount++;
-  }
-  if ((questionWantsDebt || (questionWantsChart && hasAny(qLower, "debt", "equity"))) && xbrl.total_debt_series && xbrl.shareholders_equity_series && !seen.has("debt")) {
-    seen.add("debt");
-    charts.push(<DebtEquityChart key="debt" totalDebt={xbrl.total_debt_series} equity={xbrl.shareholders_equity_series} ticker={ticker} />);
-    chartCount++;
-  }
-  if ((questionWantsEPS || (questionWantsChart && hasAny(qLower, "eps", "earnings"))) && xbrl.eps_diluted_series && !seen.has("eps")) {
-    seen.add("eps");
-    charts.push(<EPSChart key="eps" data={xbrl.eps_diluted_series} ticker={ticker} />);
-    chartCount++;
-  }
+  if (!wantsChart) {
+    // No chart keywords in question — render nothing inline
+  } else {
+    const seen = new Set<string>();
 
-  // Second pass: scan answer paragraphs for contextual chart injection
-  const paragraphs = answer.split(/\n{2,}/);
-
-  for (const para of paragraphs) {
-    const isRevenue = hasAny(para, "revenue", "sales", "net income") && !seen.has("revenue");
-    const isFCF = hasAny(para, "free cash flow", "FCF", "cash flow") && !seen.has("fcf");
-    const isMargin = hasAny(para, "gross margin", "operating margin", "margins") && !seen.has("margin");
-    const isDebt = hasAny(para, "debt", "leverage", "equity", "balance sheet") && !seen.has("debt");
-    const isEPS = hasAny(para, "EPS", "earnings per share", "diluted") && !seen.has("eps");
-
-    if (isRevenue && xbrl.revenue_series && xbrl.net_income_series) {
-      seen.add("revenue");
-      charts.push(
-        <RevenueNetIncomeChart key="rev" revenue={xbrl.revenue_series} netIncome={xbrl.net_income_series} ticker={ticker} />
-      );
-      chartCount++;
-    }
-    if (isFCF && xbrl.free_cash_flow_series) {
+    if (hasAny(qLower, "free cash flow", "fcf", "cash flow") && xbrl.free_cash_flow_series && !seen.has("fcf")) {
       seen.add("fcf");
       charts.push(<FreeCashFlowChart key="fcf" data={xbrl.free_cash_flow_series} ticker={ticker} />);
-      chartCount++;
     }
-    if (isMargin && xbrl.revenue_series && xbrl.gross_profit_series && xbrl.operating_income_series) {
+    if (hasAny(qLower, "revenue", "sales", "net income") && xbrl.revenue_series && xbrl.net_income_series && !seen.has("revenue")) {
+      seen.add("revenue");
+      charts.push(<RevenueNetIncomeChart key="rev" revenue={xbrl.revenue_series} netIncome={xbrl.net_income_series} ticker={ticker} />);
+    }
+    if (hasAny(qLower, "margin", "gross profit", "operating income") && xbrl.revenue_series && xbrl.gross_profit_series && xbrl.operating_income_series && !seen.has("margin")) {
       seen.add("margin");
-      charts.push(
-        <MarginTrendsChart key="margin"
-          revenue={xbrl.revenue_series}
-          grossProfit={xbrl.gross_profit_series}
-          operatingIncome={xbrl.operating_income_series}
-          ticker={ticker}
-        />
-      );
-      chartCount++;
+      charts.push(<MarginTrendsChart key="margin" revenue={xbrl.revenue_series} grossProfit={xbrl.gross_profit_series} operatingIncome={xbrl.operating_income_series} ticker={ticker} />);
     }
-    if (isDebt && xbrl.total_debt_series && xbrl.shareholders_equity_series) {
+    if (hasAny(qLower, "debt", "leverage", "equity", "balance sheet") && xbrl.total_debt_series && xbrl.shareholders_equity_series && !seen.has("debt")) {
       seen.add("debt");
       charts.push(<DebtEquityChart key="debt" totalDebt={xbrl.total_debt_series} equity={xbrl.shareholders_equity_series} ticker={ticker} />);
-      chartCount++;
     }
-    if (isEPS && xbrl.eps_diluted_series) {
+    if (hasAny(qLower, "eps", "earnings per share", "diluted earnings") && xbrl.eps_diluted_series && !seen.has("eps")) {
       seen.add("eps");
       charts.push(<EPSChart key="eps" data={xbrl.eps_diluted_series} ticker={ticker} />);
-      chartCount++;
     }
-
+    // "show all" / "dashboard" / "full" — show everything
+    if (charts.length === 0 || hasAny(qLower, "all", "dashboard", "full", "overview", "everything")) {
+      seen.clear();
+      charts.length = 0;
+      if (xbrl.free_cash_flow_series) charts.push(<FreeCashFlowChart key="fcf" data={xbrl.free_cash_flow_series} ticker={ticker} />);
+      if (xbrl.revenue_series && xbrl.net_income_series) charts.push(<RevenueNetIncomeChart key="rev" revenue={xbrl.revenue_series} netIncome={xbrl.net_income_series} ticker={ticker} />);
+      if (xbrl.revenue_series && xbrl.gross_profit_series && xbrl.operating_income_series) charts.push(<MarginTrendsChart key="margin" revenue={xbrl.revenue_series} grossProfit={xbrl.gross_profit_series} operatingIncome={xbrl.operating_income_series} ticker={ticker} />);
+      if (xbrl.total_debt_series && xbrl.shareholders_equity_series) charts.push(<DebtEquityChart key="debt" totalDebt={xbrl.total_debt_series} equity={xbrl.shareholders_equity_series} ticker={ticker} />);
+      if (xbrl.eps_diluted_series) charts.push(<EPSChart key="eps" data={xbrl.eps_diluted_series} ticker={ticker} />);
+    }
   }
 
   if (charts.length === 0) return null;
@@ -153,7 +110,7 @@ export default function InlineCharts({ answer, question = "", xbrl, ticker }: Pr
   return (
     <div className="mt-4 space-y-3">
       {charts}
-      {chartCount > 0 && (
+      {charts.length > 0 && (
         <>
           <button
             onClick={() => setShowDashboard(true)}
