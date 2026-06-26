@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import type { ChatMessage, Citation } from "../types";
 
 function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
@@ -13,13 +14,26 @@ function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
 }
 
 function CitationBadge({ num, citation }: { num: number; citation: Citation | undefined }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const open = pos !== null;
+
+  const handleClick = () => {
+    if (open) { setPos(null); return; }
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.top - 8, left: r.left + r.width / 2 });
+  };
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        btnRef.current && !btnRef.current.contains(e.target as Node) &&
+        popRef.current && !popRef.current.contains(e.target as Node)
+      ) setPos(null);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -28,9 +42,10 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
   const highlightUrl = citation ? buildHighlightUrl(citation.url, citation.text) : "#";
 
   return (
-    <span ref={ref} className="relative inline-block mx-0.5 align-middle">
+    <span className="relative inline-block mx-0.5 align-middle">
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={btnRef}
+        onClick={handleClick}
         className={`inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
           open
             ? "bg-accent text-white border-accent"
@@ -40,9 +55,11 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
         {num}
       </button>
 
-      {open && citation && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 w-80 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/60 text-left"
-          style={{ marginBottom: "6px" }}
+      {open && citation && pos && (
+        <div
+          ref={popRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, transform: "translate(-50%, -100%)", zIndex: 9999 }}
+          className="w-80 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/70 text-left"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-border">
@@ -59,13 +76,11 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
               Open &amp; highlight in filing
             </a>
           </div>
-
           {/* Excerpt */}
           <div className="px-3 py-2.5">
             <p className="text-xs text-gray-300 leading-relaxed line-clamp-6">{citation.text}</p>
             <p className="text-[10px] text-gray-600 mt-2 truncate">{citation.source}</p>
           </div>
-
           {/* Arrow */}
           <div className="absolute top-full left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface-secondary border-r border-b border-border rotate-45 -mt-[5px]" />
         </div>
@@ -74,38 +89,40 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
   );
 }
 
-const markdownComponents = {
-  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold text-white mt-3 mb-1">{children}</h1>,
-  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-semibold text-white mt-3 mb-1">{children}</h2>,
-  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-semibold text-gray-200 mt-2 mb-0.5">{children}</h3>,
-  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5">{children}</ul>,
-  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5">{children}</ol>,
-  li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
-  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-white">{children}</strong>,
-  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-300">{children}</em>,
-  code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-surface px-1 py-0.5 rounded text-accent">{children}</code>,
-};
+function makeMarkdownComponents(citations: Citation[]) {
+  return {
+    h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold text-white mt-4 mb-1.5">{children}</h1>,
+    h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-semibold text-white mt-3 mb-1">{children}</h2>,
+    h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-semibold text-gray-200 mt-2 mb-0.5">{children}</h3>,
+    p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+    ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5">{children}</ul>,
+    ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5">{children}</ol>,
+    li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
+    strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-white">{children}</strong>,
+    em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-300">{children}</em>,
+    code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-surface px-1 py-0.5 rounded text-accent">{children}</code>,
+    // Custom span handles our %%CIT_N%% placeholders
+    span: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
+      if (typeof className === "string" && className.startsWith("cit-")) {
+        const num = parseInt(className.replace("cit-", ""));
+        return <CitationBadge num={num} citation={citations[num - 1]} />;
+      }
+      return <span className={className}>{children}</span>;
+    },
+  };
+}
 
 function renderAnswerWithCitations(content: string, citations: Citation[]) {
-  // Split on [N] markers, render each text segment as markdown, badges inline
-  const parts = content.split(/(\[\d+\])/g);
+  // Replace [N] with an inline HTML span that ReactMarkdown will render via our custom span component.
+  // We use an HTML span with a sentinel class so it survives the markdown parser as inline HTML.
+  const prepared = content.replace(/\[(\d+)\]/g, (_m, n) => `<span class="cit-${n}"></span>`);
   return (
-    <>
-      {parts.map((part, i) => {
-        const match = part.match(/^\[(\d+)\]$/);
-        if (match) {
-          const num = parseInt(match[1]);
-          return <CitationBadge key={i} num={num} citation={citations[num - 1]} />;
-        }
-        if (!part) return null;
-        return (
-          <ReactMarkdown key={i} components={markdownComponents as never}>
-            {part}
-          </ReactMarkdown>
-        );
-      })}
-    </>
+    <ReactMarkdown
+      components={makeMarkdownComponents(citations) as never}
+      rehypePlugins={[rehypeRaw]}
+    >
+      {prepared}
+    </ReactMarkdown>
   );
 }
 
@@ -195,7 +212,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
                 {msg.role === "assistant"
                   ? (msg.citations?.length
                       ? renderAnswerWithCitations(msg.content, msg.citations)
-                      : <ReactMarkdown components={markdownComponents as never}>{msg.content}</ReactMarkdown>)
+                      : <ReactMarkdown components={makeMarkdownComponents([]) as never}>{msg.content}</ReactMarkdown>)
                   : <p className="whitespace-pre-wrap">{msg.content}</p>}
               </div>
               <span className="text-[10px] text-gray-600 px-1">
