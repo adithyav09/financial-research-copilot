@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import type { ChatMessage, Citation } from "../types";
 
 function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
   if (!baseUrl) return "#";
-  // Text Fragment URLs let Chrome/Edge scroll to + highlight the exact passage
-  const snippet = text.slice(0, 120).trim().replace(/\s+/g, " ");
-  const encoded = encodeURIComponent(snippet);
-  return `${baseUrl}#:~:text=${encoded}`;
+  // Use a short verbatim phrase from the start of the chunk for reliable Text Fragment matching.
+  // Strip markdown/special chars, take first ~8 words.
+  const clean = text.replace(/[*_#>`\[\]]/g, "").replace(/\s+/g, " ").trim();
+  const words = clean.split(" ").slice(0, 8).join(" ");
+  return `${baseUrl}#:~:text=${encodeURIComponent(words)}`;
 }
 
 function CitationBadge({ num, citation }: { num: number; citation: Citation | undefined }) {
@@ -72,16 +74,39 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
   );
 }
 
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold text-white mt-3 mb-1">{children}</h1>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-semibold text-white mt-3 mb-1">{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-semibold text-gray-200 mt-2 mb-0.5">{children}</h3>,
+  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5">{children}</ul>,
+  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5">{children}</ol>,
+  li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-white">{children}</strong>,
+  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-300">{children}</em>,
+  code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-surface px-1 py-0.5 rounded text-accent">{children}</code>,
+};
+
 function renderAnswerWithCitations(content: string, citations: Citation[]) {
+  // Split on [N] markers, render each text segment as markdown, badges inline
   const parts = content.split(/(\[\d+\])/g);
-  return parts.map((part, i) => {
-    const match = part.match(/^\[(\d+)\]$/);
-    if (match) {
-      const num = parseInt(match[1]);
-      return <CitationBadge key={i} num={num} citation={citations[num - 1]} />;
-    }
-    return <span key={i}>{part}</span>;
-  });
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/^\[(\d+)\]$/);
+        if (match) {
+          const num = parseInt(match[1]);
+          return <CitationBadge key={i} num={num} citation={citations[num - 1]} />;
+        }
+        if (!part) return null;
+        return (
+          <ReactMarkdown key={i} components={markdownComponents as never}>
+            {part}
+          </ReactMarkdown>
+        );
+      })}
+    </>
+  );
 }
 
 interface ChatPanelProps {
@@ -167,11 +192,11 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
                   ? "bg-accent/15 border border-accent/25 text-gray-100"
                   : "bg-surface-secondary border border-border text-gray-200"
               }`}>
-                <p className="whitespace-pre-wrap">
-                  {msg.role === "assistant" && msg.citations?.length
-                    ? renderAnswerWithCitations(msg.content, msg.citations)
-                    : msg.content}
-                </p>
+                {msg.role === "assistant"
+                  ? (msg.citations?.length
+                      ? renderAnswerWithCitations(msg.content, msg.citations)
+                      : <ReactMarkdown components={markdownComponents as never}>{msg.content}</ReactMarkdown>)
+                  : <p className="whitespace-pre-wrap">{msg.content}</p>}
               </div>
               <span className="text-[10px] text-gray-600 px-1">
                 {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
