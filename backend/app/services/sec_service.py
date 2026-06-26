@@ -98,21 +98,36 @@ async def fetch_latest_10k(ticker: str) -> dict:
             soup = BeautifulSoup(response.content, "html.parser")
             primary_doc_link = None
             
-            # Look for the main 10-K document (usually the largest .htm file)
+            all_htm_links = []
             for link in soup.find_all("a", href=True):
                 href = link.get("href", "")
-                if href.endswith(".htm") and "10-k" in href.lower():
+                # Unwrap inline XBRL viewer: /ix?doc=/Archives/...
+                if "/ix?doc=" in href:
+                    href = href.split("/ix?doc=")[-1]
+                all_htm_links.append(href)
+            
+            # Priority 1: ticker-named file (e.g. aapl-20250927.htm) — the main 10-K body
+            ticker_lower = ticker.lower()
+            for href in all_htm_links:
+                fname = href.split("/")[-1].lower()
+                if fname.startswith(ticker_lower) and fname.endswith(".htm") and "exhibit" not in fname:
                     primary_doc_link = href
                     break
             
+            # Priority 2: any .htm that is NOT an exhibit
             if not primary_doc_link:
-                # Fallback: try to find any .htm file
-                for link in soup.find_all("a", href=True):
-                    href = link.get("href", "")
-                    if href.endswith(".htm"):
+                for href in all_htm_links:
+                    if href.endswith(".htm") and "exhibit" not in href.lower():
                         primary_doc_link = href
                         break
             
+            # Priority 3: fallback to first .htm
+            if not primary_doc_link:
+                for href in all_htm_links:
+                    if href.endswith(".htm"):
+                        primary_doc_link = href
+                        break
+
             if not primary_doc_link:
                 raise ValueError(f"Could not find primary 10-K document for {ticker}")
             
