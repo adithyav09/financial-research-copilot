@@ -3,6 +3,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
+import ChatHistory from "./components/ChatHistory";
 import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
@@ -12,7 +13,7 @@ import type { AnalysisMode, ChatMessage, MarketData, XBRLFinancials } from "./ty
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
 export default function App() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, refreshProfile } = useAuth();
   const [backendStatus, setBackendStatus] = useState<"healthy" | "offline" | "checking">("checking");
   const [ticker, setTicker] = useState("");
   const [mode, setMode] = useState<AnalysisMode>("value");
@@ -22,7 +23,8 @@ export default function App() {
   const [xbrlData, setXbrlData] = useState<XBRLFinancials | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
-  const [sessionId] = useState<string>(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
+  const [showHistory, setShowHistory] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
 
@@ -45,6 +47,7 @@ export default function App() {
       const res = await api.query({ ticker: t, question, mode, session_id: sessionId });
       const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date(), question };
       setMessages(prev => [...prev, assistantMsg]);
+      refreshProfile().catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date(), question }]);
@@ -134,6 +137,7 @@ export default function App() {
       try {
         const res = await api.query({ ticker, question, mode, session_id: sessionId });
         setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date(), question }]);
+        refreshProfile().catch(() => {});
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date() }]);
@@ -179,10 +183,21 @@ export default function App() {
     );
   }
 
+  const handleNewChat = () => {
+    setMessages([]);
+    setSessionId(crypto.randomUUID());
+    setIngestPhase("idle");
+    setIngestMessage(null);
+    setMarketData(null);
+    setXbrlData(null);
+    stopPolling();
+    pendingQuestionRef.current = null;
+  };
+
   // profile.role === "approved" | "admin" — show the full app
   return (
     <div className="h-screen flex flex-col">
-      <Navbar backendStatus={backendStatus} />
+      <Navbar backendStatus={backendStatus} onToggleHistory={() => setShowHistory(h => !h)} showHistory={showHistory} />
       <div className="flex items-start gap-2 px-6 py-2 bg-amber-500/15 border-b border-amber-500/40 text-amber-200 text-xs">
         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
         <span>
@@ -192,6 +207,25 @@ export default function App() {
         </span>
       </div>
       <div className="flex flex-1 overflow-hidden">
+        {showHistory && (
+          <div className="w-56 shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
+            <ChatHistory
+              currentSessionId={sessionId}
+              currentTicker={ticker}
+              onNewChat={handleNewChat}
+              onSelectSession={(session) => {
+                setTicker(session.ticker);
+                setIngestPhase("idle");
+                setIngestMessage(null);
+                setMarketData(null);
+                setXbrlData(null);
+                setMessages([]);
+                stopPolling();
+                pendingQuestionRef.current = null;
+              }}
+            />
+          </div>
+        )}
         <Sidebar
           ticker={ticker}
           onTickerChange={(t) => { setTicker(t); setIngestPhase("idle"); setIngestMessage(null); setMarketData(null); setXbrlData(null); stopPolling(); pendingQuestionRef.current = null; }}

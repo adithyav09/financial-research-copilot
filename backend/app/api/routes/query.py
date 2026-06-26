@@ -32,7 +32,8 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
         # Calculate latency
         latency_ms = int((time.time() - start_time) * 1000)
         
-        # Log to Supabase
+        # Log to Supabase and update token budget
+        tokens_used = result.get("tokens_used", 0)
         try:
             supabase = get_supabase_client()
             log_data = {
@@ -44,17 +45,23 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
                 "latency_ms": latency_ms,
                 "user_id": user.user_id,
                 "session_id": request.session_id,
+                "tokens_used": tokens_used,
             }
             supabase.table("query_logs").insert(log_data).execute()
+            # Atomically increment tokens_consumed in profiles
+            supabase.rpc(
+                "increment_tokens_consumed",
+                {"p_user_id": user.user_id, "p_tokens": tokens_used},
+            ).execute()
         except Exception as log_error:
-            # Don't fail the request if logging fails
-            print(f"Failed to log query: {str(log_error)}")
+            print(f"Failed to log query/update tokens: {str(log_error)}")
 
         return QueryResponse(
             answer=result["answer"],
             mode=request.mode,
             ticker=ticker,
             citations=result["citations"],
+            tokens_used=tokens_used,
         )
     except HTTPException:
         raise

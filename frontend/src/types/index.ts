@@ -38,6 +38,7 @@ export interface QueryResponse {
   mode: AnalysisMode;
   ticker: string;
   citations: Citation[];
+  tokens_used: number;
 }
 
 export interface HealthResponse {

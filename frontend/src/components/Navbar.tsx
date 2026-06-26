@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { BarChart2, Circle, LogOut, ChevronDown } from "lucide-react";
+import { BarChart2, Circle, LogOut, ChevronDown, History } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 interface NavbarProps {
   backendStatus: "healthy" | "offline" | "checking";
+  onToggleHistory?: () => void;
+  showHistory?: boolean;
 }
 
-export default function Navbar({ backendStatus }: NavbarProps) {
+export default function Navbar({ backendStatus, onToggleHistory, showHistory }: NavbarProps) {
   const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -41,6 +43,19 @@ export default function Navbar({ backendStatus }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {onToggleHistory && (
+          <button
+            onClick={onToggleHistory}
+            title={showHistory ? "Hide history" : "Show history"}
+            className={`p-1.5 rounded-lg border transition-all ${
+              showHistory
+                ? "border-accent/30 bg-accent/10 text-accent"
+                : "border-border text-gray-500 hover:text-gray-300 hover:border-gray-600"
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+          </button>
+        )}
         <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-border text-xs text-gray-400">
           <span className="w-1.5 h-1.5 rounded-full bg-positive animate-pulse" />
           SEC EDGAR Live

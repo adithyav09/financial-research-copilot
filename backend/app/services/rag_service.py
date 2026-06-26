@@ -262,32 +262,35 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
             ))
         ])
         
-        # Step 7: Build LCEL chain
-        chain = (
-            {
-                "context": retriever | format_docs,
-                "question": RunnablePassthrough(),
-                "ticker": lambda x: ticker.upper(),
-                "live_context": lambda x: live_context,
-            }
-            | prompt
-            | llm
-            | StrOutputParser()
+        # Step 7: Retrieve docs + build prompt input
+        retrieved_docs = await retriever.ainvoke(question)
+        context_str = format_docs(retrieved_docs)
+
+        prompt_value = await prompt.ainvoke({
+            "context": context_str,
+            "question": question,
+            "ticker": ticker.upper(),
+            "live_context": live_context,
+        })
+
+        # Step 8: Call LLM directly to capture usage_metadata
+        llm_response = await llm.ainvoke(prompt_value)
+        answer = llm_response.content
+
+        # Extract actual token counts from response metadata
+        usage = getattr(llm_response, "usage_metadata", None) or {}
+        tokens_used = (
+            usage.get("total_tokens")
+            or usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+            or max(len(answer) // 4, 1)
         )
 
-        # Step 8: Execute chain
-        answer = await chain.ainvoke(question)
-        
-        # Step 9: Get retrieved documents for citations
-        retrieved_docs = await retriever.ainvoke(question)
         citations = []
-        
         for i, doc in enumerate(retrieved_docs):
             metadata = doc.metadata
             cite_ticker = metadata.get('ticker', ticker.upper())
             filing_type = metadata.get('filing_type', 'N/A')
             year = metadata.get('filing_year', 'N/A')
-            section = metadata.get('section', 'N/A')
             page = metadata.get('page', metadata.get('chunk_index', 'N/A'))
             citation = Citation(
                 text=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
@@ -296,8 +299,8 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
                 url=sec_url
             )
             citations.append(citation)
-        
-        return {"answer": answer, "citations": citations}
+
+        return {"answer": answer, "citations": citations, "tokens_used": tokens_used}
         
     except Exception as e:
         raise Exception(f"Failed to query filing for {ticker}: {str(e)}")

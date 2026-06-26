@@ -51,6 +51,7 @@ class QueryResponse(BaseModel):
     mode: AnalysisMode
     ticker: str
     citations: list[Citation] = []
+    tokens_used: int = 0
 
 
 class HealthResponse(BaseModel):
