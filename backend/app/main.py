@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, ingest, query, status
+from app.api.routes import health, ingest, query, status, market_data
 
 app = FastAPI(
     title="Financial Research Copilot",
@@ -21,3 +21,4 @@ app.include_router(health.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
 app.include_router(query.router, prefix="/api")
 app.include_router(status.router, prefix="/api")
+app.include_router(market_data.router, prefix="/api")

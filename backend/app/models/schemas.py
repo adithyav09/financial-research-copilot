@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from enum import Enum
 
 
@@ -67,3 +67,41 @@ class StatusResponse(BaseModel):
     chroma_collection: Optional[str] = None
     error_message: Optional[str] = None
     created_at: Optional[str] = None
+
+
+class MarketDataResponse(BaseModel):
+    ticker: str
+    company_name: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    current_price: Optional[float] = None
+    market_cap: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    forward_pe: Optional[float] = None
+    price_to_book: Optional[float] = None
+    price_to_sales: Optional[float] = None
+    ev_to_ebitda: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    payout_ratio: Optional[float] = None
+    beta: Optional[float] = None
+    fifty_two_week_high: Optional[float] = None
+    fifty_two_week_low: Optional[float] = None
+    analyst_recommendation: Optional[str] = None
+    short_float_percent: Optional[float] = None
+    shares_outstanding: Optional[float] = None
+
+
+class XBRLFinancialsResponse(BaseModel):
+    ticker: str
+    cik: str
+    revenue_series: Optional[List[Dict[str, Any]]] = None
+    net_income_series: Optional[List[Dict[str, Any]]] = None
+    operating_cash_flow_series: Optional[List[Dict[str, Any]]] = None
+    free_cash_flow_series: Optional[List[Dict[str, Any]]] = None
+    total_debt_series: Optional[List[Dict[str, Any]]] = None
+    gross_profit_series: Optional[List[Dict[str, Any]]] = None
+    operating_income_series: Optional[List[Dict[str, Any]]] = None
+    total_assets_series: Optional[List[Dict[str, Any]]] = None
+    total_liabilities_series: Optional[List[Dict[str, Any]]] = None
+    shareholders_equity_series: Optional[List[Dict[str, Any]]] = None
+    eps_diluted_series: Optional[List[Dict[str, Any]]] = None
