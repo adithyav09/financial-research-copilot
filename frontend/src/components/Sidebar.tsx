@@ -1,6 +1,7 @@
 import { Search, Loader2, CheckCircle2, AlertCircle, FileText } from "lucide-react";
-import type { AnalysisMode } from "../types";
+import type { AnalysisMode, MarketData } from "../types";
 import ModeSelector from "./ModeSelector";
+import MarketDataPanel from "./MarketDataPanel";
 
 interface SidebarProps {
   ticker: string;
@@ -11,6 +12,7 @@ interface SidebarProps {
   ingestMessage: string | null;
   mode: AnalysisMode;
   onModeChange: (mode: AnalysisMode) => void;
+  marketData?: MarketData | null;
 }
 
 export default function Sidebar({
@@ -22,6 +24,7 @@ export default function Sidebar({
   ingestMessage,
   mode,
   onModeChange,
+  marketData,
 }: SidebarProps) {
   return (
     <aside className="w-72 border-r border-border bg-surface-secondary flex flex-col shrink-0">
@@ -67,6 +70,9 @@ export default function Sidebar({
             </div>
           )}
         </div>
+
+        {/* Market Data */}
+        {marketData && <MarketDataPanel data={marketData} />}
 
         {/* Analyst Lens */}
         <div className="p-4 space-y-3">

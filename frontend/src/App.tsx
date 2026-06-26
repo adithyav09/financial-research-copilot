@@ -4,11 +4,10 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import LoginPage from "./components/LoginPage";
-import RequestAccessPage from "./components/RequestAccessPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
 import { api } from "./api/client";
-import type { AnalysisMode, ChatMessage } from "./types";
+import type { AnalysisMode, ChatMessage, MarketData } from "./types";
 
 export default function App() {
   const { session, profile, loading } = useAuth();
@@ -19,6 +18,7 @@ export default function App() {
   const [ingestStatus, setIngestStatus] = useState<"idle" | "success" | "error">("idle");
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
   const [isIngested, setIsIngested] = useState(false);
+  const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
 
@@ -39,6 +39,7 @@ export default function App() {
       setIngestStatus("success");
       setIngestMessage(`${res.filing_type} ingested · ${res.chunks_processed} chunks processed`);
       setIsIngested(true);
+      api.marketData(ticker).then(setMarketData).catch(() => setMarketData(null));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setIngestStatus("error");
@@ -95,13 +96,19 @@ export default function App() {
 
   if (!session) return <LoginPage />;
 
-  if (!profile) return <RequestAccessPage />;
+  if (session && !profile) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    );
+  }
 
-  if (profile.role === "pending") {
+  if (profile?.role === "pending") {
     return <PendingApprovalPage />;
   }
 
-  if (profile.role === "denied") {
+  if (profile?.role === "denied") {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center px-4">
         <div className="text-center space-y-3">
@@ -127,13 +134,14 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           ticker={ticker}
-          onTickerChange={(t) => { setTicker(t); setIsIngested(false); setIngestMessage(null); setIngestStatus("idle"); }}
+          onTickerChange={(t) => { setTicker(t); setIsIngested(false); setIngestMessage(null); setIngestStatus("idle"); setMarketData(null); }}
           onIngest={handleIngest}
           isIngesting={isIngesting}
           ingestStatus={ingestStatus}
           ingestMessage={ingestMessage}
           mode={mode}
           onModeChange={setMode}
+          marketData={marketData}
         />
         <ChatPanel
           messages={messages}

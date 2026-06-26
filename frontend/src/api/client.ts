@@ -4,6 +4,7 @@ import type {
   IngestResponse,
   QueryRequest,
   QueryResponse,
+  MarketData,
 } from "../types";
 import { supabase } from "../lib/supabase";
 
@@ -19,10 +20,11 @@ async function request<T>(
   options?: RequestInit
 ): Promise<T> {
   const token = await getAccessToken();
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { "Content-Type": "application/json", ...authHeader },
+    headers,
     ...options,
   });
 
@@ -48,4 +50,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  marketData: (ticker: string) =>
+    request<MarketData>(`/api/market-data/${ticker}`),
 };

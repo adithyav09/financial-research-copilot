@@ -28,16 +28,28 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-async function fetchProfile(accessToken: string): Promise<UserProfile | null> {
+async function fetchProfile(userId: string, _accessToken: string): Promise<UserProfile | null> {
   try {
-    const res = await fetch(`${BASE_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, email, role, token_budget, tokens_consumed")
+      .eq("id", userId)
+      .single();
+    if (error) {
+      console.error("fetchProfile error:", error.code, error.message);
+      return null;
+    }
+    if (!data) return null;
+    return {
+      user_id: data.id,
+      email: data.email,
+      role: data.role as UserRole,
+      token_budget: data.token_budget ?? 50000,
+      tokens_consumed: data.tokens_consumed ?? 0,
+    };
+  } catch (e) {
+    console.error("fetchProfile exception:", e);
     return null;
   }
 }
@@ -49,25 +61,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (sess: Session | null) => {
-    if (!sess?.access_token) {
+    if (!sess?.user?.id || !sess?.access_token) {
       setProfile(null);
       return;
     }
-    const p = await fetchProfile(sess.access_token);
+    const p = await fetchProfile(sess.user.id, sess.access_token);
     setProfile(p);
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       setUser(sess?.user ?? null);
-      loadProfile(sess).finally(() => setLoading(false));
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        loadProfile(sess).finally(() => setLoading(false));
+      } else if (event === "INITIAL_SESSION") {
+        loadProfile(sess).finally(() => setLoading(false));
+      } else if (event === "SIGNED_OUT") {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      loadProfile(sess);
+    // Handle implicit flow: parse access_token from URL hash directly
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token=")) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token") ?? "";
+      if (accessToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(({ data }) => {
+            if (data.session) {
+              setSession(data.session);
+              setUser(data.session.user);
+              loadProfile(data.session).finally(() => setLoading(false));
+              window.history.replaceState({}, "", window.location.pathname);
+            }
+          });
+        return;
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session: sess } }) => {
+      if (sess) {
+        setSession(sess);
+        setUser(sess.user);
+        loadProfile(sess).finally(() => setLoading(false));
+      }
     });
 
     return () => subscription.unsubscribe();

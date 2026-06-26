@@ -44,6 +44,28 @@ export interface HealthResponse {
   version: string;
 }
 
+export interface MarketData {
+  ticker: string;
+  company_name?: string;
+  sector?: string;
+  industry?: string;
+  current_price?: number;
+  market_cap?: number;
+  pe_ratio?: number;
+  forward_pe?: number;
+  price_to_book?: number;
+  price_to_sales?: number;
+  ev_to_ebitda?: number;
+  dividend_yield?: number;
+  payout_ratio?: number;
+  beta?: number;
+  fifty_two_week_high?: number;
+  fifty_two_week_low?: number;
+  analyst_recommendation?: string;
+  short_float_percent?: number;
+  shares_outstanding?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";

@@ -1,14 +1,13 @@
 """
-Auth core: Supabase JWT verification and FastAPI dependency helpers.
+Auth core: Supabase token verification and FastAPI dependency helpers.
 
-Supabase issues HS256 JWTs signed with the project JWT secret.
-We verify locally — no round-trip to Supabase on every request.
+Verifies tokens against Supabase /auth/v1/user — no local JWT secret needed.
 The user's role is stored in the profiles table and loaded once per request.
 """
 
 from typing import Optional
 
-import jwt
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -35,43 +34,50 @@ class AuthenticatedUser:
         return self.role == "admin"
 
 
-def _verify_jwt(token: str) -> dict:
+async def _verify_token_with_supabase(token: str) -> dict:
     """
-    Verify and decode a Supabase-issued JWT.
+    Verify a Supabase access token by calling /auth/v1/user.
+    Returns the user dict from Supabase if valid.
 
     Args:
         token: Raw Bearer token string
 
-    Returns:
-        Decoded JWT payload
-
     Raises:
         HTTPException 401 on any verification failure
     """
-    if not settings.supabase_jwt_secret:
+    if not settings.supabase_url:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Auth is not configured on this server.",
         )
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-        return payload
-    except jwt.ExpiredSignatureError:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                f"{settings.supabase_url}/auth/v1/user",
+                headers={
+                    "apikey": settings.supabase_anon_key,
+                    "Authorization": f"Bearer {token}",
+                },
+            )
+        if r.status_code == 401:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token is invalid or expired.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if r.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not verify token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return r.json()
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail=f"Auth verification failed: {str(e)}",
         )
 
 
@@ -108,15 +114,15 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> AuthenticatedUser:
     """
-    FastAPI dependency: verify JWT and return the authenticated user.
+    FastAPI dependency: verify token via Supabase and return the authenticated user.
     Raises 401 if the token is missing, expired, or invalid.
     """
-    payload = _verify_jwt(credentials.credentials)
-    user_id: Optional[str] = payload.get("sub")
+    supabase_user = await _verify_token_with_supabase(credentials.credentials)
+    user_id: Optional[str] = supabase_user.get("id")
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing subject claim.",
+            detail="Token missing user id.",
         )
     profile = _load_profile(user_id)
     return AuthenticatedUser(
