@@ -61,33 +61,29 @@ const modes: { id: AnalysisMode; label: string; icon: typeof TrendingDown; descr
 
 export default function ModeSelector({ mode, onChange }: ModeSelectorProps) {
   return (
-    <div className="space-y-2">
-      <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-        Analysis Mode
-      </label>
-      <div className="space-y-1.5">
-        {modes.map((m) => {
-          const Icon = m.icon;
-          const isActive = mode === m.id;
-          return (
-            <button
-              key={m.id}
-              onClick={() => onChange(m.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                isActive
-                  ? "bg-accent/15 border border-accent/40 text-white"
-                  : "border border-transparent hover:bg-surface-tertiary text-gray-300"
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? "text-accent" : "text-gray-500"}`} />
-              <div>
-                <div className="text-sm font-medium">{m.label}</div>
-                <div className="text-xs text-gray-500">{m.description}</div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+    <div className="space-y-1">
+      {modes.map((m) => {
+        const Icon = m.icon;
+        const isActive = mode === m.id;
+        return (
+          <button
+            key={m.id}
+            onClick={() => onChange(m.id)}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all ${
+              isActive
+                ? "bg-accent/10 border border-accent/30 text-white"
+                : "border border-transparent hover:bg-surface-tertiary text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent" : "text-gray-600"}`} />
+            <div className="min-w-0">
+              <div className={`text-xs font-semibold ${isActive ? "text-white" : "text-gray-300"}`}>{m.label}</div>
+              <div className="text-[10px] text-gray-600 truncate">{m.description}</div>
+            </div>
+            {isActive && <div className="ml-auto w-1 h-4 rounded-full bg-accent shrink-0" />}
+          </button>
+        );
+      })}
     </div>
   );
 }

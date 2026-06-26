@@ -5,17 +5,25 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: "#0f1117",
-          secondary: "#1a1d2e",
-          tertiary: "#242738",
+          DEFAULT: "#0a0c10",
+          secondary: "#111318",
+          tertiary: "#1a1d24",
         },
         accent: {
-          DEFAULT: "#6366f1",
-          hover: "#818cf8",
+          DEFAULT: "#3b82f6",
+          hover: "#60a5fa",
+          muted: "#1d4ed8",
         },
         border: {
-          DEFAULT: "#2a2d3e",
+          DEFAULT: "#1f2330",
         },
+        positive: "#10b981",
+        negative: "#ef4444",
+        warning: "#f59e0b",
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
       },
     },
   },
