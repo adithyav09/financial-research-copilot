@@ -416,19 +416,71 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
         )
 
         citations = []
-        for i, doc in enumerate(retrieved_docs):
-            metadata = doc.metadata
-            cite_ticker = metadata.get('ticker', ticker.upper())
-            filing_type = metadata.get('filing_type', 'N/A')
-            year = metadata.get('filing_year', 'N/A')
-            page = metadata.get('page', metadata.get('chunk_index', 'N/A'))
-            citation = Citation(
-                text=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
-                source=f"{cite_ticker} {filing_type} {year} — chunk {i+1}",
-                page=str(page),
-                url=sec_url
-            )
-            citations.append(citation)
+
+        if is_live:
+            # For live questions: cite the data sources used
+            today = __import__("datetime").date.today().isoformat()
+            if market_data:
+                price = market_data.get("current_price")
+                mcap = market_data.get("market_cap")
+                rec = market_data.get("analyst_recommendation")
+                ttm = market_data.get("ttm") or {}
+                period = ttm.get("ttm_period") or ttm.get("mrq_period") or today
+                citations.append(Citation(
+                    text=(
+                        f"Live market data as of {today}. "
+                        + (f"Price: ${price:.2f}. " if price else "")
+                        + (f"Market Cap: ${mcap/1e9:.1f}B. " if mcap else "")
+                        + (f"Analyst consensus: {rec}. " if rec else "")
+                        + (f"TTM/MRQ financials period ending {period}." if period else "")
+                    ),
+                    source=f"{ticker.upper()} — Yahoo Finance (live)",
+                    page="live",
+                    url=f"https://finance.yahoo.com/quote/{ticker.upper()}",
+                ))
+                # Add TTM financials as a second citation if available
+                ttm_lines = [v for k, v in ttm.items() if v and k not in ("ttm_period", "mrq_period")]
+                if ttm_lines:
+                    citations.append(Citation(
+                        text="; ".join(f"{k.replace('ttm_','').replace('mrq_','').replace('_',' ').title()}: {v}"
+                                       for k, v in ttm.items() if v and k not in ("ttm_period", "mrq_period")),
+                        source=f"{ticker.upper()} — Yahoo Finance TTM/MRQ Financials (period: {period})",
+                        page="ttm",
+                        url=f"https://finance.yahoo.com/quote/{ticker.upper()}/financials",
+                    ))
+            if market_data and market_data.get("news"):
+                news_items = market_data["news"]
+                news_text = " | ".join(
+                    f"[{n.get('date','')}] {n.get('title','')} ({n.get('publisher','')})"
+                    for n in news_items[:5]
+                )
+                citations.append(Citation(
+                    text=news_text,
+                    source=f"{ticker.upper()} — Yahoo Finance News Headlines",
+                    page="news",
+                    url=f"https://finance.yahoo.com/quote/{ticker.upper()}/news",
+                ))
+            if xbrl_data:
+                citations.append(Citation(
+                    text=f"Historical annual financials from SEC EDGAR XBRL data for {ticker.upper()}.",
+                    source=f"{ticker.upper()} — SEC EDGAR XBRL",
+                    page="xbrl",
+                    url=f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&ticker={ticker.upper()}&type=10-K",
+                ))
+        else:
+            # For filing questions: include all retrieved doc citations
+            for i, doc in enumerate(retrieved_docs):
+                metadata = doc.metadata
+                cite_ticker = metadata.get('ticker', ticker.upper())
+                filing_type = metadata.get('filing_type', '10-K')
+                year = metadata.get('filing_year', 'N/A')
+                page = metadata.get('page', metadata.get('chunk_index', 'N/A'))
+                citations.append(Citation(
+                    text=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
+                    source=f"{cite_ticker} {filing_type} {year} — chunk {i+1}",
+                    page=str(page),
+                    url=sec_url,
+                ))
 
         return {"answer": answer, "citations": citations, "tokens_used": tokens_used}
         

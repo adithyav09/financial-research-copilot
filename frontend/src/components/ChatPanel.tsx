@@ -269,6 +269,26 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, ingestP
                       ? renderAnswerWithCitations(msg.content, msg.citations)
                       : <ReactMarkdown components={makeMarkdownComponents([]) as never}>{msg.content}</ReactMarkdown>)
                   : <p className="whitespace-pre-wrap">{msg.content}</p>}
+                {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Sources</p>
+                    <div className="flex flex-col gap-1">
+                      {msg.citations.map((c, i) => (
+                        <a
+                          key={i}
+                          href={c.url || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-accent transition-colors truncate group"
+                        >
+                          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[8px] font-bold bg-accent/15 text-accent border border-accent/20 shrink-0">{i + 1}</span>
+                          <span className="truncate group-hover:underline">{c.source}</span>
+                          <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-50" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               {/* P8: inline charts after assistant messages */}
               {msg.role === "assistant" && xbrlData && (
