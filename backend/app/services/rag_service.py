@@ -249,54 +249,61 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
         dict with answer and citations
     """
     try:
-        # Step 1: Query Supabase for all ready collections for this ticker (10-K + 10-Q)
-        supabase = get_supabase_client()
-        q = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker.upper()).eq("status", "ready")
-        if user_id:
-            q = q.eq("user_id", user_id)
-        all_jobs_resp = q.order("created_at", desc=True).limit(10).execute()
+        is_live = _is_live_question(question)
 
-        if not all_jobs_resp.data:
-            raise ValueError(f"No ready ingestion found for ticker {ticker}")
+        sec_url = None
+        retriever = None
+        tenq_retriever = None
 
-        # Pick the primary (most recent 10-K) for sec_url; also find latest 10-Q if present
-        jobs_by_type: dict = {}
-        for job in all_jobs_resp.data:
-            ft = job.get("filing_type", "10-K")
-            if ft not in jobs_by_type:
-                jobs_by_type[ft] = job
+        if not is_live:
+            # Step 1: Query Supabase for all ready collections for this ticker (10-K + 10-Q)
+            supabase = get_supabase_client()
+            q = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker.upper()).eq("status", "ready")
+            if user_id:
+                q = q.eq("user_id", user_id)
+            all_jobs_resp = q.order("created_at", desc=True).limit(10).execute()
 
-        primary_job = jobs_by_type.get("10-K") or all_jobs_resp.data[0]
-        collection_name = primary_job["chroma_collection"]
-        sec_url = primary_job.get("sec_url")
+            if not all_jobs_resp.data:
+                raise ValueError(f"No ready ingestion found for ticker {ticker}")
 
-        # Step 2: Load ChromaDB collections
-        embeddings = OpenAIEmbeddings(
-            model=settings.embedding_model,
-            api_key=settings.openai_api_key
-        )
+            # Pick the primary (most recent 10-K) for sec_url; also find latest 10-Q if present
+            jobs_by_type: dict = {}
+            for job in all_jobs_resp.data:
+                ft = job.get("filing_type", "10-K")
+                if ft not in jobs_by_type:
+                    jobs_by_type[ft] = job
 
-        chroma_client = get_chroma_client()
-        vectorstore = Chroma(
-            client=chroma_client,
-            collection_name=collection_name,
-            embedding_function=embeddings
-        )
+            primary_job = jobs_by_type.get("10-K") or all_jobs_resp.data[0]
+            collection_name = primary_job["chroma_collection"]
+            sec_url = primary_job.get("sec_url")
 
-        # Also load 10-Q vectorstore if available
-        tenq_vectorstore = None
-        if "10-Q" in jobs_by_type:
-            tenq_col = jobs_by_type["10-Q"].get("chroma_collection")
-            if tenq_col:
-                try:
-                    tenq_vectorstore = Chroma(
-                        client=chroma_client,
-                        collection_name=tenq_col,
-                        embedding_function=embeddings,
-                    )
-                except Exception:
-                    tenq_vectorstore = None
-        
+            # Step 2: Load ChromaDB collections
+            embeddings = OpenAIEmbeddings(
+                model=settings.embedding_model,
+                api_key=settings.openai_api_key
+            )
+
+            chroma_client = get_chroma_client()
+            vectorstore = Chroma(
+                client=chroma_client,
+                collection_name=collection_name,
+                embedding_function=embeddings
+            )
+
+            # Also load 10-Q vectorstore if available
+            tenq_vectorstore = None
+            if "10-Q" in jobs_by_type:
+                tenq_col = jobs_by_type["10-Q"].get("chroma_collection")
+                if tenq_col:
+                    try:
+                        tenq_vectorstore = Chroma(
+                            client=chroma_client,
+                            collection_name=tenq_col,
+                            embedding_function=embeddings,
+                        )
+                    except Exception:
+                        tenq_vectorstore = None
+
         # Step 3: Initialize LLM
         llm = ChatOpenAI(
             model=settings.llm_model,
@@ -304,24 +311,23 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
             api_key=settings.openai_api_key
         )
 
-        # Step 4: Create retriever (MultiQuery on top of similarity retriever)
-        base_retriever = vectorstore.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": settings.retrieval_k}
-        )
-        retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
+        # Step 4: Create retrievers only for filing questions
+        if not is_live:
+            base_retriever = vectorstore.as_retriever(
+                search_type="similarity",
+                search_kwargs={"k": settings.retrieval_k}
+            )
+            retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
 
-        # Also create a 10-Q retriever if available
-        tenq_retriever = None
-        if tenq_vectorstore:
-            try:
-                tenq_base = tenq_vectorstore.as_retriever(
-                    search_type="similarity",
-                    search_kwargs={"k": max(2, settings.retrieval_k // 2)}
-                )
-                tenq_retriever = MultiQueryRetriever.from_llm(retriever=tenq_base, llm=llm)
-            except Exception:
-                tenq_retriever = None
+            if tenq_vectorstore:
+                try:
+                    tenq_base = tenq_vectorstore.as_retriever(
+                        search_type="similarity",
+                        search_kwargs={"k": max(2, settings.retrieval_k // 2)}
+                    )
+                    tenq_retriever = MultiQueryRetriever.from_llm(retriever=tenq_base, llm=llm)
+                except Exception:
+                    tenq_retriever = None
 
         # Step 5: Fetch live market + XBRL data (best-effort, never fail the query)
         market_data = None
@@ -337,9 +343,7 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
 
         live_context = _format_market_context(ticker, market_data, xbrl_data)
 
-        # Step 6: Detect whether this is a live/news question or a filing question
-        is_live = _is_live_question(question)
-
+        # Step 6: Build prompt (is_live already determined at top of function)
         system_prompt = (
             MODE_SYSTEM_PROMPTS[mode]
             + "\n\n" + CONTEXT_ONLY_INSTRUCTION

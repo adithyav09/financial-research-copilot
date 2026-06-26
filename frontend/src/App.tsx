@@ -57,8 +57,25 @@ export default function App() {
     }
   };
 
+  const isLiveQuestion = (q: string) => {
+    const lower = q.toLowerCase();
+    return ["news","latest","recent","today","this week","this month","current",
+            "right now","as of","stock price","share price","analyst","rating",
+            "upgrade","downgrade","earnings call","guidance","forecast","outlook",
+            "quarter","q1","q2","q3","q4","ttm","trailing"].some(p => lower.includes(p));
+  };
+
   const ensureIngestedThenQuery = async (question: string, t: string) => {
     setIngestMessage(null);
+
+    // Live/news questions don't need an ingested filing — fire directly
+    if (isLiveQuestion(question)) {
+      setIngestPhase("ready");
+      api.marketData(t).then(setMarketData).catch(() => {});
+      api.xbrl(t).then(setXbrlData).catch(() => {});
+      await fireQuery(question, t);
+      return;
+    }
 
     // Step 1: Check current status
     setIngestPhase("checking");

@@ -2,7 +2,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.schemas import QueryRequest, QueryResponse
-from app.services.rag_service import query_filing, check_ticker_ingested
+from app.services.rag_service import query_filing, check_ticker_ingested, _is_live_question
 from app.core.database import get_supabase_client
 from app.core.auth import AuthenticatedUser, require_approved
 
@@ -21,10 +21,11 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
     start_time = time.time()
     
     try:
-        # Check if ticker has been ingested
-        is_ingested = await check_ticker_ingested(ticker)
-        if not is_ingested:
-            raise HTTPException(status_code=404, detail="Ticker not ingested. Please ingest first.")
+        # Live/news questions don't need an ingested filing — answer from Yahoo Finance only
+        if not _is_live_question(request.question):
+            is_ingested = await check_ticker_ingested(ticker)
+            if not is_ingested:
+                raise HTTPException(status_code=404, detail="Ticker not ingested. Please ingest first.")
         
         # Query the filing
         result = await query_filing(ticker, request.question, request.mode, user_id=user.user_id)
