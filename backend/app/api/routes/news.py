@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from pydantic import BaseModel
 
@@ -22,7 +22,7 @@ class NewsResponse(BaseModel):
 
 
 @router.get("/news/{ticker}", response_model=NewsResponse)
-async def get_news(ticker: str, user: AuthenticatedUser = require_approved):
+async def get_news(ticker: str, user: AuthenticatedUser = Depends(require_approved)):
     try:
         items = await fetch_news(ticker.upper())
         return NewsResponse(
