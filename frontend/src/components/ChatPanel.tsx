@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { ChatMessage, Citation } from "../types";
 
 function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
@@ -112,14 +113,33 @@ function makeMarkdownComponents(citations: Citation[]) {
   };
 }
 
+// Sanitize schema: start from defaultSchema (allows standard markdown output elements),
+// then additionally permit <span> tags but ONLY when the class matches our cit-N sentinel.
+// All other HTML from the LLM (e.g. <script>, <img>, <a onclick=...>) is stripped.
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [
+      [
+        "className",
+        // Only class values matching cit-<digits> are allowed through
+        /^cit-\d+$/,
+      ],
+    ],
+  },
+  tagNames: [...(defaultSchema.tagNames ?? []), "span"],
+};
+
 function renderAnswerWithCitations(content: string, citations: Citation[]) {
-  // Replace [N] with an inline HTML span that ReactMarkdown will render via our custom span component.
-  // We use an HTML span with a sentinel class so it survives the markdown parser as inline HTML.
+  // Replace [N] markers with sentinel spans before markdown parsing.
+  // rehype-raw re-parses the inline HTML; rehype-sanitize then strips
+  // everything except our cit-N spans (and standard markdown output tags).
   const prepared = content.replace(/\[(\d+)\]/g, (_m, n) => `<span class="cit-${n}"></span>`);
   return (
     <ReactMarkdown
       components={makeMarkdownComponents(citations) as never}
-      rehypePlugins={[rehypeRaw]}
+      rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
     >
       {prepared}
     </ReactMarkdown>
