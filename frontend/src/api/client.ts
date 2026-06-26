@@ -5,6 +5,10 @@ import type {
   QueryRequest,
   QueryResponse,
   MarketData,
+  StatusResponse,
+  SuggestionsRequest,
+  SuggestionsResponse,
+  XBRLFinancials,
 } from "../types";
 import { supabase } from "../lib/supabase";
 
@@ -53,4 +57,16 @@ export const api = {
 
   marketData: (ticker: string) =>
     request<MarketData>(`/api/market-data/${ticker}`),
+
+  status: (ticker: string) =>
+    request<StatusResponse>(`/api/status/${ticker}`),
+
+  suggestions: (data: SuggestionsRequest) =>
+    request<SuggestionsResponse>("/api/query/suggestions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  xbrl: (ticker: string) =>
+    request<XBRLFinancials>(`/api/market-data/${ticker}/xbrl`),
 };

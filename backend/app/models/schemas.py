@@ -36,6 +36,7 @@ class QueryRequest(BaseModel):
     ticker: str
     question: str
     mode: AnalysisMode = AnalysisMode.VALUE
+    session_id: Optional[str] = None
 
 
 class Citation(BaseModel):

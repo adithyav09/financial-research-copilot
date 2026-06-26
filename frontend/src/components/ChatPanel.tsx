@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import type { ChatMessage, Citation } from "../types";
+import type { ChatMessage, Citation, XBRLFinancials } from "../types";
+import { api } from "../api/client";
+import InlineCharts from "./charts/InlineCharts";
 
 function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
   if (!baseUrl) return "#";
@@ -146,21 +148,53 @@ function renderAnswerWithCitations(content: string, citations: Citation[]) {
   );
 }
 
+type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
+
+const LENS_PILLS: { id: string; emoji: string; label: string; subtitle: string }[] = [
+  { id: "value",      emoji: "📊", label: "Value",        subtitle: "P/E, cash flow, book value" },
+  { id: "growth",     emoji: "🚀", label: "Growth",       subtitle: "Revenue growth, R&D, TAM" },
+  { id: "income",     emoji: "💰", label: "Income",       subtitle: "Dividends, payout ratio" },
+  { id: "quality",    emoji: "🏆", label: "Quality",      subtitle: "ROE, ROIC, moat" },
+  { id: "risk_averse",emoji: "🛡️", label: "Conservative", subtitle: "Debt ratios, risk factors" },
+  { id: "esg",        emoji: "🌱", label: "ESG",          subtitle: "Board, sustainability" },
+  { id: "activist",   emoji: "🔍", label: "Deep Dive",    subtitle: "Insider activity, accounting flags" },
+];
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (message: string) => void;
   isLoading: boolean;
   ticker: string;
-  isIngested: boolean;
+  ingestPhase: IngestPhase;
+  mode: string;
+  onModeChange: (mode: string) => void;
+  xbrlData?: XBRLFinancials | null;
 }
 
-export default function ChatPanel({ messages, onSend, isLoading, ticker, isIngested }: ChatPanelProps) {
+export default function ChatPanel({ messages, onSend, isLoading, ticker, ingestPhase, mode, onModeChange, xbrlData }: ChatPanelProps) {
+  const isIngested = ingestPhase === "ready";
+  const isBusy = ingestPhase === "checking" || ingestPhase === "ingesting" || ingestPhase === "polling";
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [suggestions, setSuggestions] = useState<Record<string, string[]>>({});
+  const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const fetchSuggestions = useCallback(async (msgId: string, answer: string) => {
+    if (!ticker || suggestions[msgId]) return;
+    setLoadingSuggestions(prev => ({ ...prev, [msgId]: true }));
+    try {
+      const res = await api.suggestions({ ticker, previous_answer: answer, mode });
+      setSuggestions(prev => ({ ...prev, [msgId]: res.suggestions }));
+    } catch {
+      setSuggestions(prev => ({ ...prev, [msgId]: [] }));
+    } finally {
+      setLoadingSuggestions(prev => ({ ...prev, [msgId]: false }));
+    }
+  }, [ticker, mode, suggestions]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -171,7 +205,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
 
   const modeLabels: Record<string, string> = {
     value: "Value", growth: "Growth", income: "Income",
-    quality: "Quality", risk_averse: "Risk-Averse", esg: "ESG", activist: "Activist"
+    quality: "Quality", risk_averse: "Conservative", esg: "ESG", activist: "Deep Dive"
   };
 
   return (
@@ -186,14 +220,15 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
             <div>
               <h3 className="text-base font-semibold text-gray-200">
                 {!ticker ? "Select a company to begin"
-                  : !isIngested ? `Load ${ticker}'s 10-K filing`
-                  : `Analyze ${ticker}`}
+                  : isBusy ? `Loading ${ticker}'s 10-K…`
+                  : isIngested ? `Analyze ${ticker}`
+                  : `Ask about ${ticker}`}
               </h3>
               <p className="text-sm text-gray-500 mt-1 max-w-sm">
                 {isIngested
                   ? "Ask about revenue, risks, strategy, or any detail from the filing."
-                  : !ticker ? "Enter a ticker in the sidebar, then load the latest 10-K."
-                  : `Click "Load Latest 10-K" in the sidebar to process the filing.`}
+                  : !ticker ? "Enter a ticker in the sidebar and ask a question — the 10-K loads automatically."
+                  : "Type a question below. The 10-K will be fetched automatically on first ask."}
               </p>
             </div>
             {isIngested && (
@@ -209,7 +244,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
           </div>
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, msgIdx) => (
           <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             {msg.role === "assistant" && (
               <div className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 mt-1">
@@ -235,6 +270,35 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
                       : <ReactMarkdown components={makeMarkdownComponents([]) as never}>{msg.content}</ReactMarkdown>)
                   : <p className="whitespace-pre-wrap">{msg.content}</p>}
               </div>
+              {/* P8: inline charts after assistant messages */}
+              {msg.role === "assistant" && xbrlData && (
+                <InlineCharts answer={msg.content} xbrl={xbrlData} ticker={ticker} />
+              )}
+              {/* P6: suggestions chips — only after last assistant message */}
+              {msg.role === "assistant" && msgIdx === messages.length - 1 && !isLoading && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {loadingSuggestions[msg.id] && (
+                    <span className="text-[11px] text-gray-600 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Generating follow-ups…</span>
+                  )}
+                  {!suggestions[msg.id] && !loadingSuggestions[msg.id] && (
+                    <button
+                      onClick={() => fetchSuggestions(msg.id, msg.content)}
+                      className="text-[11px] text-gray-500 hover:text-accent border border-border hover:border-accent/30 px-2.5 py-1 rounded-full transition-all"
+                    >
+                      + Suggest follow-ups
+                    </button>
+                  )}
+                  {(suggestions[msg.id] ?? []).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => onSend(s)}
+                      className="text-[11px] text-gray-300 hover:text-white bg-surface-secondary hover:bg-surface-tertiary border border-border hover:border-accent/30 px-3 py-1.5 rounded-full transition-all"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
               <span className="text-[10px] text-gray-600 px-1">
                 {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
@@ -263,7 +327,31 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-border p-4 bg-surface-secondary">
+      <form onSubmit={handleSubmit} className="border-t border-border px-4 pt-3 pb-3 bg-surface-secondary space-y-2">
+        {/* Analyst lens pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {LENS_PILLS.map((pill) => (
+            <button
+              key={pill.id}
+              type="button"
+              title={`${pill.label} — ${pill.subtitle}`}
+              onClick={() => onModeChange(pill.id)}
+              className={`group relative flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                mode === pill.id
+                  ? "bg-accent/15 border-accent/40 text-accent"
+                  : "border-border text-gray-500 hover:text-gray-300 hover:border-gray-600"
+              }`}
+            >
+              <span>{pill.emoji}</span>
+              <span>{pill.label}</span>
+              {/* Tooltip */}
+              <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[160px] rounded-md bg-gray-900 border border-border px-2 py-1 text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity text-center z-50">
+                {pill.subtitle}
+              </span>
+            </button>
+          ))}
+        </div>
+        {/* Text input row */}
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -271,25 +359,23 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
             placeholder={
               !ticker ? "Enter a ticker in the sidebar first…"
-                : !isIngested ? `Load ${ticker}'s 10-K to start asking questions…`
+                : isBusy ? `Fetching ${ticker}'s 10-K… your question will send automatically`
                 : `Ask anything about ${ticker}'s filing…`
             }
-            disabled={!ticker || !isIngested}
+            disabled={!ticker || isLoading}
             className="flex-1 px-4 py-2.5 bg-surface rounded-lg border border-border text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all disabled:opacity-40"
           />
           <button
             type="submit"
-            disabled={!input.trim() || isLoading || !ticker || !isIngested}
+            disabled={!input.trim() || isLoading || !ticker}
             className="p-2.5 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-all active:scale-95 shadow-md shadow-accent/20"
           >
-            <Send className="w-4 h-4" />
+            {isLoading && !isIngested ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
-        {isIngested && (
-          <p className="text-[10px] text-gray-600 mt-2 text-center">
-            Responses are based solely on SEC filings · Not investment advice
-          </p>
-        )}
+        <p className="text-[10px] text-gray-600 text-center">
+          Responses are based solely on SEC filings · Not investment advice
+        </p>
       </form>
     </div>
   );

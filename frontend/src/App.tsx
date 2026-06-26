@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -7,20 +7,24 @@ import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
 import { api } from "./api/client";
-import type { AnalysisMode, ChatMessage, MarketData } from "./types";
+import type { AnalysisMode, ChatMessage, MarketData, XBRLFinancials } from "./types";
+
+type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
 export default function App() {
   const { session, profile, loading } = useAuth();
   const [backendStatus, setBackendStatus] = useState<"healthy" | "offline" | "checking">("checking");
   const [ticker, setTicker] = useState("");
   const [mode, setMode] = useState<AnalysisMode>("value");
-  const [isIngesting, setIsIngesting] = useState(false);
-  const [ingestStatus, setIngestStatus] = useState<"idle" | "success" | "error">("idle");
+  const [ingestPhase, setIngestPhase] = useState<IngestPhase>("idle");
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
-  const [isIngested, setIsIngested] = useState(false);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
+  const [xbrlData, setXbrlData] = useState<XBRLFinancials | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
+  const [sessionId] = useState<string>(() => crypto.randomUUID());
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingQuestionRef = useRef<string | null>(null);
 
   useEffect(() => {
     api
@@ -29,60 +33,116 @@ export default function App() {
       .catch(() => setBackendStatus("offline"));
   }, []);
 
-  const handleIngest = async () => {
-    if (!ticker.trim()) return;
-    setIsIngesting(true);
-    setIngestMessage(null);
-    setIngestStatus("idle");
-    try {
-      const res = await api.ingest({ ticker });
-      setIngestStatus("success");
-      setIngestMessage(`${res.filing_type} ingested · ${res.chunks_processed} chunks processed`);
-      setIsIngested(true);
-      api.marketData(ticker).then(setMarketData).catch(() => setMarketData(null));
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setIngestStatus("error");
-      setIngestMessage(`Failed to ingest: ${msg}`);
-      setIsIngested(false);
-    } finally {
-      setIsIngesting(false);
-    }
-  }
+  const stopPolling = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
 
-  const handleSend = async (question: string) => {
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: question,
-      timestamp: new Date(),
-    };
-    setMessages((prev: ChatMessage[]) => [...prev, userMsg]);
+  const fireQuery = async (question: string, t: string) => {
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
     setIsQuerying(true);
-
     try {
-      const res = await api.query({ ticker, question, mode });
-      const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: res.answer,
-        citations: res.citations,
-        mode: res.mode,
-        timestamp: new Date(),
-      };
-      setMessages((prev: ChatMessage[]) => [...prev, assistantMsg]);
+      const res = await api.query({ ticker: t, question, mode, session_id: sessionId });
+      const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date() };
+      setMessages(prev => [...prev, assistantMsg]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      const errorMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `Error: ${msg}`,
-        timestamp: new Date(),
-      };
-      setMessages((prev: ChatMessage[]) => [...prev, errorMsg]);
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date() }]);
     } finally {
       setIsQuerying(false);
     }
+  };
+
+  const ensureIngestedThenQuery = async (question: string, t: string) => {
+    setIngestMessage(null);
+
+    // Step 1: Check current status
+    setIngestPhase("checking");
+    let statusData;
+    try {
+      statusData = await api.status(t);
+    } catch {
+      statusData = null;
+    }
+
+    if (statusData?.status === "ready") {
+      setIngestPhase("ready");
+      setIngestMessage(`${statusData.filing_type ?? "10-K"} · ${statusData.filing_year ?? ""} · ${statusData.chunk_count} chunks`);
+      api.marketData(t).then(setMarketData).catch(() => {});
+      api.xbrl(t).then(setXbrlData).catch(() => {});
+      await fireQuery(question, t);
+      return;
+    }
+
+    if (statusData?.status === "processing") {
+      setIngestPhase("polling");
+      setIngestMessage(`Fetching ${t}'s latest 10-K from SEC EDGAR… this takes ~30s the first time`);
+      pendingQuestionRef.current = question;
+      startPolling(t);
+      return;
+    }
+
+    // status not found or failed — trigger ingest
+    setIngestPhase("ingesting");
+    setIngestMessage(`Fetching ${t}'s latest 10-K from SEC EDGAR… this takes ~30s the first time`);
+    pendingQuestionRef.current = question;
+    try {
+      await api.ingest({ ticker: t });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setIngestPhase("error");
+      setIngestMessage(`Failed to fetch filing: ${msg}`);
+      pendingQuestionRef.current = null;
+      return;
+    }
+    setIngestPhase("polling");
+    startPolling(t);
+  };
+
+  const startPolling = (t: string) => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      try {
+        const s = await api.status(t);
+        if (s.status === "ready") {
+          stopPolling();
+          setIngestPhase("ready");
+          setIngestMessage(`${s.filing_type ?? "10-K"} · ${s.filing_year ?? ""} · ${s.chunk_count} chunks`);
+          api.marketData(t).then(setMarketData).catch(() => {});
+          api.xbrl(t).then(setXbrlData).catch(() => {});
+          const q = pendingQuestionRef.current;
+          pendingQuestionRef.current = null;
+          if (q) await fireQuery(q, t);
+        } else if (s.status === "failed") {
+          stopPolling();
+          setIngestPhase("error");
+          setIngestMessage(`Ingestion failed: ${s.error_message ?? "unknown error"}`);
+          pendingQuestionRef.current = null;
+        }
+      } catch { /* keep polling */ }
+    }, 3000);
+  };
+
+  useEffect(() => stopPolling, []);
+
+  const handleSend = async (question: string) => {
+    if (!ticker.trim()) return;
+    if (ingestPhase === "ready") {
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date() };
+      setMessages(prev => [...prev, userMsg]);
+      setIsQuerying(true);
+      try {
+        const res = await api.query({ ticker, question, mode, session_id: sessionId });
+        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date() }]);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date() }]);
+      } finally {
+        setIsQuerying(false);
+      }
+      return;
+    }
+    await ensureIngestedThenQuery(question, ticker);
   };
 
   // Auth gates — checked in order before showing the main app
@@ -134,21 +194,20 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           ticker={ticker}
-          onTickerChange={(t) => { setTicker(t); setIsIngested(false); setIngestMessage(null); setIngestStatus("idle"); setMarketData(null); }}
-          onIngest={handleIngest}
-          isIngesting={isIngesting}
-          ingestStatus={ingestStatus}
+          onTickerChange={(t) => { setTicker(t); setIngestPhase("idle"); setIngestMessage(null); setMarketData(null); setXbrlData(null); stopPolling(); pendingQuestionRef.current = null; }}
+          ingestPhase={ingestPhase}
           ingestMessage={ingestMessage}
-          mode={mode}
-          onModeChange={setMode}
           marketData={marketData}
         />
         <ChatPanel
           messages={messages}
           onSend={handleSend}
-          isLoading={isQuerying}
+          isLoading={isQuerying || ingestPhase === "ingesting" || ingestPhase === "polling" || ingestPhase === "checking"}
           ticker={ticker}
-          isIngested={isIngested}
+          ingestPhase={ingestPhase}
+          mode={mode}
+          onModeChange={(m) => setMode(m as AnalysisMode)}
+          xbrlData={xbrlData}
         />
       </div>
     </div>

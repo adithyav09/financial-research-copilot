@@ -43,6 +43,7 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
                 "citations_count": len(result["citations"]),
                 "latency_ms": latency_ms,
                 "user_id": user.user_id,
+                "session_id": request.session_id,
             }
             supabase.table("query_logs").insert(log_data).execute()
         except Exception as log_error:

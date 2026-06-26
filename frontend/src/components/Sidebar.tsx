@@ -1,29 +1,23 @@
-import { Search, Loader2, CheckCircle2, AlertCircle, FileText } from "lucide-react";
-import type { AnalysisMode, MarketData } from "../types";
-import ModeSelector from "./ModeSelector";
+import { Loader2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import type { MarketData } from "../types";
 import MarketDataPanel from "./MarketDataPanel";
+import TickerAutocomplete from "./TickerAutocomplete";
+
+type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
 interface SidebarProps {
   ticker: string;
   onTickerChange: (ticker: string) => void;
-  onIngest: () => void;
-  isIngesting: boolean;
-  ingestStatus: "idle" | "success" | "error";
+  ingestPhase: IngestPhase;
   ingestMessage: string | null;
-  mode: AnalysisMode;
-  onModeChange: (mode: AnalysisMode) => void;
   marketData?: MarketData | null;
 }
 
 export default function Sidebar({
   ticker,
   onTickerChange,
-  onIngest,
-  isIngesting,
-  ingestStatus,
+  ingestPhase,
   ingestMessage,
-  mode,
-  onModeChange,
   marketData,
 }: SidebarProps) {
   return (
@@ -33,40 +27,37 @@ export default function Sidebar({
         {/* Filing Loader */}
         <div className="p-4 border-b border-border space-y-3">
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">
-            Load Filing
+            Company
           </p>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-            <input
-              type="text"
-              value={ticker}
-              onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
-              placeholder="Ticker — AAPL, MSFT, MU…"
-              maxLength={10}
-              className="w-full pl-8 pr-3 py-2 bg-surface rounded-lg border border-border text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all font-mono tracking-wider"
-            />
-          </div>
-          <button
-            onClick={onIngest}
-            disabled={!ticker.trim() || isIngesting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-accent hover:bg-accent-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-accent/10"
-          >
-            {isIngesting ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /><span>Fetching from SEC…</span></>
-            ) : (
-              <><FileText className="w-4 h-4" /><span>Load Latest 10-K</span></>
-            )}
-          </button>
-          {ingestMessage && (
-            <div className={`flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs border ${
-              ingestStatus === "success"
-                ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
-                : "bg-red-500/5 border-red-500/20 text-red-400"
-            }`}>
-              {ingestStatus === "success"
-                ? <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                : <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+          <TickerAutocomplete
+            value={ticker}
+            onChange={(t) => onTickerChange(t)}
+          />
+          {ingestPhase === "idle" && ticker && (
+            <p className="text-[11px] text-gray-500">Ask a question to load the 10-K automatically.</p>
+          )}
+          {(ingestPhase === "checking" || ingestPhase === "ingesting" || ingestPhase === "polling") && (
+            <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs border bg-blue-500/5 border-blue-500/20 text-blue-300">
+              <Loader2 className="w-3.5 h-3.5 mt-0.5 shrink-0 animate-spin" />
+              <span className="leading-relaxed">{ingestMessage ?? "Loading filing…"}</span>
+            </div>
+          )}
+          {ingestPhase === "ready" && ingestMessage && (
+            <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs border bg-emerald-500/5 border-emerald-500/20 text-emerald-400">
+              <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span className="leading-relaxed">{ingestMessage}</span>
+            </div>
+          )}
+          {ingestPhase === "error" && ingestMessage && (
+            <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs border bg-red-500/5 border-red-500/20 text-red-400">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span className="leading-relaxed">{ingestMessage}</span>
+            </div>
+          )}
+          {ingestPhase === "polling" && (
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <Clock className="w-3 h-3" />
+              <span>Polling for completion…</span>
             </div>
           )}
         </div>
@@ -74,13 +65,6 @@ export default function Sidebar({
         {/* Market Data */}
         {marketData && <MarketDataPanel data={marketData} />}
 
-        {/* Analyst Lens */}
-        <div className="p-4 space-y-3">
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">
-            Analyst Lens
-          </p>
-          <ModeSelector mode={mode} onChange={onModeChange} />
-        </div>
       </div>
 
       <div className="p-3 border-t border-border">
