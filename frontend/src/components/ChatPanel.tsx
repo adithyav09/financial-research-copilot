@@ -2,6 +2,14 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink } from "lucide-react";
 import type { ChatMessage, Citation } from "../types";
 
+function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
+  if (!baseUrl) return "#";
+  // Text Fragment URLs let Chrome/Edge scroll to + highlight the exact passage
+  const snippet = text.slice(0, 120).trim().replace(/\s+/g, " ");
+  const encoded = encodeURIComponent(snippet);
+  return `${baseUrl}#:~:text=${encoded}`;
+}
+
 function CitationBadge({ num, citation }: { num: number; citation: Citation | undefined }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -15,42 +23,49 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  const highlightUrl = citation ? buildHighlightUrl(citation.url, citation.text) : "#";
+
   return (
     <span ref={ref} className="relative inline-block mx-0.5 align-middle">
       <button
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold bg-accent/25 text-accent hover:bg-accent/45 border border-accent/30 transition-colors cursor-pointer leading-none"
+        className={`inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
+          open
+            ? "bg-accent text-white border-accent"
+            : "bg-accent/25 text-accent hover:bg-accent/45 border-accent/30"
+        }`}
       >
         {num}
       </button>
+
       {open && citation && (
-        <div
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-          className="absolute z-50 bottom-full mb-2 left-1/2 -translate-x-1/2 w-72 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/50 p-3 text-left"
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 w-80 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/60 text-left"
+          style={{ marginBottom: "6px" }}
         >
-          <div className="flex items-start justify-between gap-2 mb-2">
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-border">
             <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">
               Source [{num}]
             </span>
-            {citation.url && (
-              <a
-                href={citation.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-accent transition-colors shrink-0"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Open filing
-              </a>
-            )}
+            <a
+              href={highlightUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] font-medium text-gray-300 hover:text-accent bg-surface px-2 py-1 rounded-md border border-border hover:border-accent/40 transition-all"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Open &amp; highlight in filing
+            </a>
           </div>
-          <p className="text-xs text-gray-300 leading-relaxed line-clamp-5">{citation.text}</p>
-          <p className="text-[10px] text-gray-600 mt-2 truncate">{citation.source}</p>
+
+          {/* Excerpt */}
+          <div className="px-3 py-2.5">
+            <p className="text-xs text-gray-300 leading-relaxed line-clamp-6">{citation.text}</p>
+            <p className="text-[10px] text-gray-600 mt-2 truncate">{citation.source}</p>
+          </div>
+
           {/* Arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-surface-secondary border-r border-b border-border rotate-45 -mt-1" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface-secondary border-r border-b border-border rotate-45 -mt-[5px]" />
         </div>
       )}
     </span>
