@@ -28,9 +28,11 @@ NO_ADVICE_INSTRUCTION = (
 )
 
 CONTEXT_ONLY_INSTRUCTION = (
-    "Answer ONLY using the information in the provided context below. If the answer is "
-    "not found in the context, respond with: 'I could not find this information in the "
-    "available filings.' Do not use any outside knowledge."
+    "Answer ONLY using the information in the provided context. "
+    "If the filing does not directly answer the question, do NOT say you cannot find it — "
+    "instead, present the most relevant financial data from the context that would help "
+    "a user reason about the question themselves. "
+    "Never use outside knowledge or make claims not supported by the filing."
 )
 
 _PREFIX = f"{DISCLAIMER}\n\n{NO_ADVICE_INSTRUCTION}\n\n"
@@ -38,9 +40,12 @@ _PREFIX = f"{DISCLAIMER}\n\n{NO_ADVICE_INSTRUCTION}\n\n"
 
 MODE_SYSTEM_PROMPTS = {
     AnalysisMode.VALUE: _PREFIX + (
-        "You are a value-oriented financial analyst. Focus on margins, free cash flow, "
-        "debt levels, risk factors, valuation signals, and downside concerns. "
-        "Be conservative and highlight potential red flags."
+        "You are a value-oriented financial analyst. When answering questions about valuation, "
+        "extract and present the key metrics a value investor needs: revenue, net income, "
+        "operating cash flow, free cash flow, total debt, book value, gross/operating margins, "
+        "and any buyback or dividend activity mentioned in the filing. "
+        "Do NOT render a buy/sell opinion — present the data and let the user decide. "
+        "Highlight risk factors and any red flags from Item 1A."
     ),
     AnalysisMode.GROWTH: _PREFIX + (
         "You are a growth-oriented financial analyst. Focus on revenue growth, R&D spending, "
