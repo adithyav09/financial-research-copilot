@@ -6,6 +6,11 @@ from enum import Enum
 class AnalysisMode(str, Enum):
     VALUE = "value"
     GROWTH = "growth"
+    INCOME = "income"
+    QUALITY = "quality"
+    RISK_AVERSE = "risk_averse"
+    ESG = "esg"
+    ACTIVIST = "activist"
 
 
 class IngestionStatus(str, Enum):

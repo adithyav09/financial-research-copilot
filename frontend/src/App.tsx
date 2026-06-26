@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AlertTriangle } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
@@ -81,6 +82,14 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col">
       <Navbar backendStatus={backendStatus} />
+      <div className="flex items-start gap-2 px-6 py-2 bg-amber-500/15 border-b border-amber-500/40 text-amber-200 text-xs">
+        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+        <span>
+          This tool provides research assistance based on public SEC filings. Nothing here
+          is investment advice. Always verify information and consult a licensed professional
+          before making investment decisions.
+        </span>
+      </div>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           ticker={ticker}
