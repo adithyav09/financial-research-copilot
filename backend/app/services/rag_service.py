@@ -235,32 +235,53 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
         dict with answer and citations
     """
     try:
-        # Step 1: Query Supabase for the latest collection name (scoped to user if provided)
+        # Step 1: Query Supabase for all ready collections for this ticker (10-K + 10-Q)
         supabase = get_supabase_client()
         q = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker.upper()).eq("status", "ready")
         if user_id:
             q = q.eq("user_id", user_id)
-        response = q.order("created_at", desc=True).limit(1).execute()
-        
-        if not response.data:
+        all_jobs_resp = q.order("created_at", desc=True).limit(10).execute()
+
+        if not all_jobs_resp.data:
             raise ValueError(f"No ready ingestion found for ticker {ticker}")
-        
-        ingestion_job = response.data[0]
-        collection_name = ingestion_job["chroma_collection"]
-        sec_url = ingestion_job.get("sec_url")
-        
-        # Step 2: Load the ChromaDB collection
+
+        # Pick the primary (most recent 10-K) for sec_url; also find latest 10-Q if present
+        jobs_by_type: dict = {}
+        for job in all_jobs_resp.data:
+            ft = job.get("filing_type", "10-K")
+            if ft not in jobs_by_type:
+                jobs_by_type[ft] = job
+
+        primary_job = jobs_by_type.get("10-K") or all_jobs_resp.data[0]
+        collection_name = primary_job["chroma_collection"]
+        sec_url = primary_job.get("sec_url")
+
+        # Step 2: Load ChromaDB collections
         embeddings = OpenAIEmbeddings(
             model=settings.embedding_model,
             api_key=settings.openai_api_key
         )
-        
+
         chroma_client = get_chroma_client()
         vectorstore = Chroma(
             client=chroma_client,
             collection_name=collection_name,
             embedding_function=embeddings
         )
+
+        # Also load 10-Q vectorstore if available
+        tenq_vectorstore = None
+        if "10-Q" in jobs_by_type:
+            tenq_col = jobs_by_type["10-Q"].get("chroma_collection")
+            if tenq_col:
+                try:
+                    tenq_vectorstore = Chroma(
+                        client=chroma_client,
+                        collection_name=tenq_col,
+                        embedding_function=embeddings,
+                    )
+                except Exception:
+                    tenq_vectorstore = None
         
         # Step 3: Initialize LLM
         llm = ChatOpenAI(
@@ -275,6 +296,18 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
             search_kwargs={"k": settings.retrieval_k}
         )
         retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
+
+        # Also create a 10-Q retriever if available
+        tenq_retriever = None
+        if tenq_vectorstore:
+            try:
+                tenq_base = tenq_vectorstore.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": max(2, settings.retrieval_k // 2)}
+                )
+                tenq_retriever = MultiQueryRetriever.from_llm(retriever=tenq_base, llm=llm)
+            except Exception:
+                tenq_retriever = None
 
         # Step 5: Fetch live market + XBRL data (best-effort, never fail the query)
         market_data = None
@@ -302,15 +335,24 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
             ("system", system_prompt),
             ("human", (
                 "{live_context}\n\n"
-                "Context from {ticker} 10-K filing "
+                "Context from {ticker} SEC filings (10-K annual + 10-Q quarterly where available) "
                 "(each passage is numbered for inline citations):\n\n"
                 "{context}\n\n"
                 "Question: {question}"
             ))
         ])
-        
-        # Step 7: Retrieve docs + build prompt input
+
+        # Step 7: Retrieve docs from 10-K; merge with 10-Q docs if available
         retrieved_docs = await retriever.ainvoke(question)
+        if tenq_retriever:
+            try:
+                tenq_docs = await tenq_retriever.ainvoke(question)
+                # Deduplicate by content and prepend 10-Q docs (more recent)
+                seen_content = {d.page_content[:100] for d in retrieved_docs}
+                new_tenq = [d for d in tenq_docs if d.page_content[:100] not in seen_content]
+                retrieved_docs = new_tenq + retrieved_docs
+            except Exception:
+                pass
         context_str = format_docs(retrieved_docs)
 
         prompt_value = await prompt.ainvoke({

@@ -184,3 +184,142 @@ async def fetch_latest_10k(ticker: str) -> dict:
                 raise Exception(f"SEC API error for {ticker}: {str(e)}")
         except Exception as e:
             raise Exception(f"Failed to fetch 10-K for {ticker}: {str(e)}")
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError))
+)
+async def fetch_latest_10q(ticker: str) -> dict:
+    """
+    Fetch the latest 10-Q filing for a given ticker using SEC EDGAR API.
+    Returns the same structure as fetch_latest_10k.
+    """
+    headers = {"User-Agent": settings.sec_user_agent}
+
+    async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+        try:
+            # Step 1: Resolve ticker to CIK
+            tickers_url = "https://www.sec.gov/files/company_tickers.json"
+            response = await client.get(tickers_url)
+            response.raise_for_status()
+            await asyncio.sleep(0.5)
+
+            tickers_data = response.json()
+            cik = None
+            for entry in tickers_data.values():
+                if entry["ticker"].upper() == ticker.upper():
+                    cik = str(entry["cik_str"]).zfill(10)
+                    break
+
+            if not cik:
+                raise ValueError(f"Ticker {ticker} not found in SEC company list")
+
+            # Step 2: Get filing history
+            submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+            response = await client.get(submissions_url)
+            response.raise_for_status()
+            await asyncio.sleep(0.5)
+
+            submissions_data = response.json()
+            recent_filings = submissions_data["filings"]["recent"]
+
+            filing_list = []
+            for i in range(len(recent_filings["accessionNumber"])):
+                filing_list.append({
+                    "accessionNumber": recent_filings["accessionNumber"][i],
+                    "filingDate": recent_filings["filingDate"][i],
+                    "form": recent_filings["form"][i],
+                    "primaryDocument": recent_filings["primaryDocument"][i],
+                })
+
+            tenq_filings = [f for f in filing_list if f["form"] == "10-Q"]
+
+            if not tenq_filings:
+                raise ValueError(f"No 10-Q filings found for {ticker}")
+
+            latest_filing = tenq_filings[0]
+            accession_number = latest_filing["accessionNumber"]
+            filing_date = latest_filing["filingDate"]
+
+            # Step 3: Get primary document URL
+            accession_no_dashes = accession_number.replace("-", "")
+            index_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_no_dashes}/{accession_number}-index.htm"
+
+            response = await client.get(index_url)
+            response.raise_for_status()
+            await asyncio.sleep(0.5)
+
+            soup = BeautifulSoup(response.content, "html.parser")
+            primary_doc_link = None
+
+            all_htm_links = []
+            for link in soup.find_all("a", href=True):
+                href = link.get("href", "")
+                if "/ix?doc=" in href:
+                    href = href.split("/ix?doc=")[-1]
+                all_htm_links.append(href)
+
+            ticker_lower = ticker.lower()
+            for href in all_htm_links:
+                fname = href.split("/")[-1].lower()
+                if fname.startswith(ticker_lower) and fname.endswith(".htm") and "exhibit" not in fname:
+                    primary_doc_link = href
+                    break
+
+            if not primary_doc_link:
+                for href in all_htm_links:
+                    if href.endswith(".htm") and "exhibit" not in href.lower():
+                        primary_doc_link = href
+                        break
+
+            if not primary_doc_link:
+                for href in all_htm_links:
+                    if href.endswith(".htm"):
+                        primary_doc_link = href
+                        break
+
+            if not primary_doc_link:
+                raise ValueError(f"Could not find primary 10-Q document for {ticker}")
+
+            if primary_doc_link.startswith("/"):
+                doc_url = f"https://www.sec.gov{primary_doc_link}"
+            else:
+                doc_url = primary_doc_link
+
+            response = await client.get(doc_url)
+            response.raise_for_status()
+            await asyncio.sleep(0.5)
+
+            soup = BeautifulSoup(response.content, "html.parser")
+            for script in soup(["script", "style"]):
+                script.decompose()
+
+            content = soup.get_text()
+            content = re.sub(r'\s+', ' ', content).strip()
+            if len(content) > 400000:
+                content = content[:400000]
+
+            # 10-Q filing_year = calendar year of the period, but we use the filing date year
+            filing_year = int(filing_date.split("-")[0])
+
+            return {
+                "ticker": ticker.upper(),
+                "filing_type": "10-Q",
+                "filing_date": filing_date,
+                "filing_year": filing_year,
+                "content": content,
+                "url": doc_url,
+                "cik": str(cik),
+            }
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                raise Exception(f"SEC rate limit exceeded for {ticker}: {str(e)}")
+            elif e.response.status_code == 503:
+                raise Exception(f"SEC service unavailable for {ticker}: {str(e)}")
+            else:
+                raise Exception(f"SEC API error for {ticker}: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Failed to fetch 10-Q for {ticker}: {str(e)}")
