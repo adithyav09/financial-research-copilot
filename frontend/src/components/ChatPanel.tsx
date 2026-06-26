@@ -1,34 +1,69 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Loader2, BarChart2, User, MessageSquare } from "lucide-react";
+import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink } from "lucide-react";
 import type { ChatMessage, Citation } from "../types";
-import CitationCard from "./CitationCard";
 
-function renderAnswerWithCitations(content: string, citations: Citation[], msgId: string) {
+function CitationBadge({ num, citation }: { num: number; citation: Citation | undefined }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-block mx-0.5 align-middle">
+      <button
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold bg-accent/25 text-accent hover:bg-accent/45 border border-accent/30 transition-colors cursor-pointer leading-none"
+      >
+        {num}
+      </button>
+      {open && citation && (
+        <div
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          className="absolute z-50 bottom-full mb-2 left-1/2 -translate-x-1/2 w-72 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/50 p-3 text-left"
+        >
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">
+              Source [{num}]
+            </span>
+            {citation.url && (
+              <a
+                href={citation.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-accent transition-colors shrink-0"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Open filing
+              </a>
+            )}
+          </div>
+          <p className="text-xs text-gray-300 leading-relaxed line-clamp-5">{citation.text}</p>
+          <p className="text-[10px] text-gray-600 mt-2 truncate">{citation.source}</p>
+          {/* Arrow */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-surface-secondary border-r border-b border-border rotate-45 -mt-1" />
+        </div>
+      )}
+    </span>
+  );
+}
+
+function renderAnswerWithCitations(content: string, citations: Citation[]) {
   const parts = content.split(/(\[\d+\])/g);
   return parts.map((part, i) => {
     const match = part.match(/^\[(\d+)\]$/);
     if (match) {
       const num = parseInt(match[1]);
-      const citation = citations[num - 1];
-      const anchor = `citation-${msgId}-${num - 1}`;
-      return (
-        <a
-          key={i}
-          href={citation?.url || "#"}
-          target={citation?.url ? "_blank" : "_self"}
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            if (!citation?.url) {
-              e.preventDefault();
-              document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }
-          }}
-          className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold bg-accent/30 text-accent hover:bg-accent/50 transition-colors cursor-pointer mx-0.5 align-middle"
-          title={citation ? citation.text.slice(0, 100) : ""}
-        >
-          {num}
-        </a>
-      );
+      return <CitationBadge key={i} num={num} citation={citations[num - 1]} />;
     }
     return <span key={i}>{part}</span>;
   });
@@ -119,19 +154,9 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
               }`}>
                 <p className="whitespace-pre-wrap">
                   {msg.role === "assistant" && msg.citations?.length
-                    ? renderAnswerWithCitations(msg.content, msg.citations, msg.id)
+                    ? renderAnswerWithCitations(msg.content, msg.citations)
                     : msg.content}
                 </p>
-                {msg.citations && msg.citations.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-border space-y-2">
-                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">Sources</p>
-                    {msg.citations.map((citation, i) => (
-                      <div key={i} id={`citation-${msg.id}-${i}`}>
-                        <CitationCard citation={citation} index={i} />
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
               <span className="text-[10px] text-gray-600 px-1">
                 {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
