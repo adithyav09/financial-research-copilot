@@ -5,15 +5,24 @@ import type {
   QueryRequest,
   QueryResponse,
 } from "../types";
+import { supabase } from "../lib/supabase";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
 
 async function request<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
+  const token = await getAccessToken();
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+
   const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeader },
     ...options,
   });
 

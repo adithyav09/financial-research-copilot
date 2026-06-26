@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.schemas import IngestRequest, IngestResponse
 from app.services.sec_service import fetch_latest_10k
 from app.services.ingestion_service import ingest_filing
 from app.core.database import get_supabase_client
+from app.core.auth import AuthenticatedUser, require_approved
 
 router = APIRouter()
 
 
 @router.post("/ingest", response_model=IngestResponse)
-async def ingest_10k(request: IngestRequest):
+async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(require_approved)):
     ticker = request.ticker.strip().upper()
 
     if not ticker:
@@ -22,7 +23,8 @@ async def ingest_10k(request: IngestRequest):
         ingestion_data = {
             "ticker": ticker,
             "filing_type": "10-K",
-            "status": "processing"
+            "status": "processing",
+            "user_id": user.user_id,
         }
         response = supabase.table("ingestion_jobs").insert(ingestion_data).execute()
         

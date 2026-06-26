@@ -69,6 +69,25 @@ class StatusResponse(BaseModel):
     created_at: Optional[str] = None
 
 
+class UserProfileResponse(BaseModel):
+    user_id: str
+    email: Optional[str] = None
+    role: str
+    token_budget: int = 50000
+    tokens_consumed: int = 0
+    created_at: Optional[str] = None
+
+
+class AccessRequestPayload(BaseModel):
+    use_case: str
+    investor_type: str
+
+
+class AdminApprovePayload(BaseModel):
+    action: str
+    token_budget: Optional[int] = None
+
+
 class MarketDataResponse(BaseModel):
     ticker: str
     company_name: Optional[str] = None

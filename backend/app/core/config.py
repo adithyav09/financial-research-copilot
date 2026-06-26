@@ -7,11 +7,14 @@ class Settings(BaseSettings):
     chroma_path: str = "./chroma_db"
     supabase_url: str = ""
     supabase_service_key: str = ""
+    supabase_anon_key: str = ""
+    supabase_jwt_secret: str = ""
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o-mini"
     chunk_size: int = 1000
     chunk_overlap: int = 200
     retrieval_k: int = 5
+    fred_api_key: str = ""
 
     class Config:
         env_file = ".env"

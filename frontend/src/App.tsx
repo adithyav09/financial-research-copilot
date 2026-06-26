@@ -1,12 +1,17 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
+import LoginPage from "./components/LoginPage";
+import RequestAccessPage from "./components/RequestAccessPage";
+import PendingApprovalPage from "./components/PendingApprovalPage";
+import { useAuth } from "./context/AuthContext";
 import { api } from "./api/client";
 import type { AnalysisMode, ChatMessage } from "./types";
 
 export default function App() {
+  const { session, profile, loading } = useAuth();
   const [backendStatus, setBackendStatus] = useState<"healthy" | "offline" | "checking">("checking");
   const [ticker, setTicker] = useState("");
   const [mode, setMode] = useState<AnalysisMode>("value");
@@ -79,6 +84,35 @@ export default function App() {
     }
   };
 
+  // Auth gates — checked in order before showing the main app
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!session) return <LoginPage />;
+
+  if (!profile) return <RequestAccessPage />;
+
+  if (profile.role === "pending") {
+    return <PendingApprovalPage />;
+  }
+
+  if (profile.role === "denied") {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center px-4">
+        <div className="text-center space-y-3">
+          <p className="text-white font-semibold">Access denied</p>
+          <p className="text-sm text-gray-400">Your access request was not approved.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // profile.role === "approved" | "admin" — show the full app
   return (
     <div className="h-screen flex flex-col">
       <Navbar backendStatus={backendStatus} />

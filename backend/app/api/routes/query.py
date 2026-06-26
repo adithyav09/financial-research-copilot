@@ -1,15 +1,16 @@
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.schemas import QueryRequest, QueryResponse
 from app.services.rag_service import query_filing, check_ticker_ingested
 from app.core.database import get_supabase_client
+from app.core.auth import AuthenticatedUser, require_approved
 
 router = APIRouter()
 
 
 @router.post("/query", response_model=QueryResponse)
-async def query_10k(request: QueryRequest):
+async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(require_approved)):
     ticker = request.ticker.strip().upper()
 
     if not ticker:
@@ -40,7 +41,8 @@ async def query_10k(request: QueryRequest):
                 "mode": request.mode.value,
                 "answer_length": len(result["answer"]),
                 "citations_count": len(result["citations"]),
-                "latency_ms": latency_ms
+                "latency_ms": latency_ms,
+                "user_id": user.user_id,
             }
             supabase.table("query_logs").insert(log_data).execute()
         except Exception as log_error:
