@@ -69,6 +69,8 @@ class StatusResponse(BaseModel):
     chroma_collection: Optional[str] = None
     error_message: Optional[str] = None
     created_at: Optional[str] = None
+    is_stale: bool = False
+    latest_sec_year: Optional[int] = None
 
 
 class UserProfileResponse(BaseModel):

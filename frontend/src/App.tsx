@@ -25,6 +25,7 @@ export default function App() {
   const [isQuerying, setIsQuerying] = useState(false);
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(true);
+  const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
 
@@ -71,6 +72,11 @@ export default function App() {
     if (statusData?.status === "ready") {
       setIngestPhase("ready");
       setIngestMessage(`${statusData.filing_type ?? "10-K"} · ${statusData.filing_year ?? ""} · ${statusData.chunk_count} chunks`);
+      if (statusData.is_stale && statusData.filing_year && statusData.latest_sec_year) {
+        setStaleInfo({ ingestedYear: statusData.filing_year, latestYear: statusData.latest_sec_year });
+      } else {
+        setStaleInfo(null);
+      }
       api.marketData(t).then(setMarketData).catch(() => {});
       api.xbrl(t).then(setXbrlData).catch(() => {});
       await fireQuery(question, t);
@@ -249,10 +255,25 @@ export default function App() {
         )}
         <Sidebar
           ticker={ticker}
-          onTickerChange={(t) => { setTicker(t); setIngestPhase("idle"); setIngestMessage(null); setMarketData(null); setXbrlData(null); stopPolling(); pendingQuestionRef.current = null; }}
+          onTickerChange={(t) => { setTicker(t); setIngestPhase("idle"); setIngestMessage(null); setMarketData(null); setXbrlData(null); setStaleInfo(null); stopPolling(); pendingQuestionRef.current = null; }}
           ingestPhase={ingestPhase}
           ingestMessage={ingestMessage}
           marketData={marketData}
+          staleInfo={staleInfo}
+          onReIngest={() => {
+            setStaleInfo(null);
+            setIngestPhase("ingesting");
+            setIngestMessage(`Fetching latest ${ticker} 10-K from SEC EDGAR…`);
+            pendingQuestionRef.current = null;
+            api.ingest({ ticker }).then(() => {
+              setIngestPhase("polling");
+              startPolling(ticker);
+            }).catch((err: unknown) => {
+              const msg = err instanceof Error ? err.message : "Unknown error";
+              setIngestPhase("error");
+              setIngestMessage(`Re-ingest failed: ${msg}`);
+            });
+          }}
         />
         <ChatPanel
           messages={messages}

@@ -178,7 +178,7 @@ async def check_ticker_ingested(ticker: str) -> bool:
         return False
 
 
-async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
+async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: str | None = None) -> dict:
     """
     Query the vector store and generate a mode-aware answer using LCEL chain.
     
@@ -191,9 +191,12 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
         dict with answer and citations
     """
     try:
-        # Step 1: Query Supabase for the latest collection name
+        # Step 1: Query Supabase for the latest collection name (scoped to user if provided)
         supabase = get_supabase_client()
-        response = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker.upper()).eq("status", "ready").order("created_at", desc=True).limit(1).execute()
+        q = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker.upper()).eq("status", "ready")
+        if user_id:
+            q = q.eq("user_id", user_id)
+        response = q.order("created_at", desc=True).limit(1).execute()
         
         if not response.data:
             raise ValueError(f"No ready ingestion found for ticker {ticker}")

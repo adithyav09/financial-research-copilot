@@ -1,4 +1,4 @@
-import { Loader2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Clock, RefreshCw } from "lucide-react";
 import type { MarketData } from "../types";
 import MarketDataPanel from "./MarketDataPanel";
 import TickerAutocomplete from "./TickerAutocomplete";
@@ -11,6 +11,8 @@ interface SidebarProps {
   ingestPhase: IngestPhase;
   ingestMessage: string | null;
   marketData?: MarketData | null;
+  staleInfo?: { ingestedYear: number; latestYear: number } | null;
+  onReIngest?: () => void;
 }
 
 export default function Sidebar({
@@ -19,6 +21,8 @@ export default function Sidebar({
   ingestPhase,
   ingestMessage,
   marketData,
+  staleInfo,
+  onReIngest,
 }: SidebarProps) {
   return (
     <aside className="w-72 border-r border-border bg-surface-secondary flex flex-col shrink-0">
@@ -46,6 +50,23 @@ export default function Sidebar({
             <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs border bg-emerald-500/5 border-emerald-500/20 text-emerald-400">
               <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span className="leading-relaxed">{ingestMessage}</span>
+            </div>
+          )}
+          {staleInfo && ingestPhase === "ready" && (
+            <div className="flex flex-col gap-2 rounded-lg px-3 py-2.5 text-xs border bg-amber-500/5 border-amber-500/20 text-amber-300">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400" />
+                <span className="leading-relaxed">
+                  You're using the <strong>{staleInfo.ingestedYear}</strong> 10-K. A newer <strong>{staleInfo.latestYear}</strong> filing is available on SEC EDGAR.
+                </span>
+              </div>
+              <button
+                onClick={onReIngest}
+                className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-medium transition-all"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Re-ingest {staleInfo.latestYear} filing
+              </button>
             </div>
           )}
           {ingestPhase === "error" && ingestMessage && (

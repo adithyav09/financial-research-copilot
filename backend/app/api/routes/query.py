@@ -27,7 +27,7 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
             raise HTTPException(status_code=404, detail="Ticker not ingested. Please ingest first.")
         
         # Query the filing
-        result = await query_filing(ticker, request.question, request.mode)
+        result = await query_filing(ticker, request.question, request.mode, user_id=user.user_id)
         
         # Calculate latency
         latency_ms = int((time.time() - start_time) * 1000)

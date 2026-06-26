@@ -56,6 +56,8 @@ export interface StatusResponse {
   chroma_collection?: string;
   error_message?: string;
   created_at?: string;
+  is_stale?: boolean;
+  latest_sec_year?: number;
 }
 
 export interface MarketData {
