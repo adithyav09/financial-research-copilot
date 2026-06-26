@@ -29,6 +29,7 @@ export interface Citation {
   text: string;
   source: string;
   page?: string;
+  url?: string;
 }
 
 export interface QueryResponse {

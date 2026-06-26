@@ -42,6 +42,7 @@ class Citation(BaseModel):
     text: str
     source: str
     page: Optional[str] = None
+    url: Optional[str] = None
 
 
 class QueryResponse(BaseModel):

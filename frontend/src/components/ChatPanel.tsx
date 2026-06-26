@@ -1,7 +1,38 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader2, MessageSquare } from "lucide-react";
-import type { ChatMessage } from "../types";
+import type { ChatMessage, Citation } from "../types";
 import CitationCard from "./CitationCard";
+
+function renderAnswerWithCitations(content: string, citations: Citation[], msgId: string) {
+  const parts = content.split(/(\[\d+\])/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^\[(\d+)\]$/);
+    if (match) {
+      const num = parseInt(match[1]);
+      const citation = citations[num - 1];
+      const anchor = `citation-${msgId}-${num - 1}`;
+      return (
+        <a
+          key={i}
+          href={citation?.url || "#"}
+          target={citation?.url ? "_blank" : "_self"}
+          rel="noopener noreferrer"
+          onClick={(e) => {
+            if (!citation?.url) {
+              e.preventDefault();
+              document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+          }}
+          className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold bg-accent/30 text-accent hover:bg-accent/50 transition-colors cursor-pointer mx-0.5 align-middle"
+          title={citation ? citation.text.slice(0, 100) : ""}
+        >
+          {num}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -65,12 +96,18 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, isInges
                   {msg.mode} mode
                 </span>
               )}
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {msg.role === "assistant" && msg.citations?.length
+                  ? renderAnswerWithCitations(msg.content, msg.citations, msg.id)
+                  : msg.content}
+              </p>
 
               {msg.citations && msg.citations.length > 0 && (
                 <div className="mt-3 space-y-2">
                   {msg.citations.map((citation, i) => (
-                    <CitationCard key={i} citation={citation} index={i} />
+                    <div key={i} id={`citation-${msg.id}-${i}`}>
+                      <CitationCard citation={citation} index={i} />
+                    </div>
                   ))}
                 </div>
               )}

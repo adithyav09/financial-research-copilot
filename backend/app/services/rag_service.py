@@ -144,6 +144,7 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
         
         ingestion_job = response.data[0]
         collection_name = ingestion_job["chroma_collection"]
+        sec_url = ingestion_job.get("sec_url")
         
         # Step 2: Load the ChromaDB collection
         embeddings = OpenAIEmbeddings(
@@ -205,7 +206,7 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
         retrieved_docs = await retriever.ainvoke(question)
         citations = []
         
-        for doc in retrieved_docs:
+        for i, doc in enumerate(retrieved_docs):
             metadata = doc.metadata
             cite_ticker = metadata.get('ticker', ticker.upper())
             filing_type = metadata.get('filing_type', 'N/A')
@@ -214,8 +215,9 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
             page = metadata.get('page', metadata.get('chunk_index', 'N/A'))
             citation = Citation(
                 text=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
-                source=f"[Source: {cite_ticker} {filing_type} {year}, Section: {section}, Page: {page}]",
-                page=str(page)
+                source=f"{cite_ticker} {filing_type} {year} — chunk {i+1}",
+                page=str(page),
+                url=sec_url
             )
             citations.append(citation)
         
