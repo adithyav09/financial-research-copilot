@@ -29,6 +29,20 @@ NO_ADVICE_INSTRUCTION = (
     "Do NOT predict future stock prices or earnings. Present only facts from the filings."
 )
 
+LIVE_QUESTION_PATTERNS = [
+    "news", "latest", "recent", "today", "this week", "this month", "current",
+    "right now", "as of", "stock price", "share price", "analyst", "rating",
+    "upgrade", "downgrade", "earnings call", "guidance", "forecast", "outlook",
+    "quarter", "q1", "q2", "q3", "q4", "ttm", "trailing",
+]
+
+
+def _is_live_question(question: str) -> bool:
+    """Return True if the question is primarily about current/recent data rather than filings."""
+    q = question.lower()
+    return any(p in q for p in LIVE_QUESTION_PATTERNS)
+
+
 CONTEXT_ONLY_INSTRUCTION = (
     "Answer using the Live Market & Financial Data block AND the 10-K filing context provided. "
     "Data priority order:\n"
@@ -323,7 +337,9 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
 
         live_context = _format_market_context(ticker, market_data, xbrl_data)
 
-        # Step 6: Build prompt template
+        # Step 6: Detect whether this is a live/news question or a filing question
+        is_live = _is_live_question(question)
+
         system_prompt = (
             MODE_SYSTEM_PROMPTS[mode]
             + "\n\n" + CONTEXT_ONLY_INSTRUCTION
@@ -331,36 +347,57 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
             + "\n\n" + EDUCATIONAL_INSTRUCTION
         )
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", (
-                "{live_context}\n\n"
-                "Context from {ticker} SEC filings (10-K annual + 10-Q quarterly where available) "
-                "(each passage is numbered for inline citations):\n\n"
-                "{context}\n\n"
-                "Question: {question}"
-            ))
-        ])
+        if is_live:
+            # For current/news questions: answer entirely from live data, skip filing retrieval
+            live_prompt = ChatPromptTemplate.from_messages([
+                ("system",
+                    MODE_SYSTEM_PROMPTS[mode]
+                    + "\n\nYou are answering a question about CURRENT or RECENT information. "
+                    "Use ONLY the Live Market & Financial Data block below. "
+                    "Do NOT reference old filings or fabricate anything not in the data block. "
+                    "For news questions, list headlines with their dates and publishers. "
+                    + "\n\n" + NO_ADVICE_INSTRUCTION
+                ),
+                ("human", "{live_context}\n\nQuestion: {question}")
+            ])
+            prompt_value = await live_prompt.ainvoke({
+                "live_context": live_context,
+                "question": question,
+            })
+            retrieved_docs = []  # no filing citations for live questions
+        else:
+            # Filing question: retrieve from 10-K + 10-Q, put live data after the question
+            filing_prompt = ChatPromptTemplate.from_messages([
+                ("system", system_prompt),
+                ("human", (
+                    "Context from {ticker} SEC filings (10-K annual + 10-Q quarterly where available) "
+                    "(each passage is numbered for inline citations):\n\n"
+                    "{context}\n\n"
+                    "Question: {question}\n\n"
+                    "For any numbers not found in the filing context, "
+                    "you may use the live data below as a supplement:\n"
+                    "{live_context}"
+                ))
+            ])
 
-        # Step 7: Retrieve docs from 10-K; merge with 10-Q docs if available
-        retrieved_docs = await retriever.ainvoke(question)
-        if tenq_retriever:
-            try:
-                tenq_docs = await tenq_retriever.ainvoke(question)
-                # Deduplicate by content and prepend 10-Q docs (more recent)
-                seen_content = {d.page_content[:100] for d in retrieved_docs}
-                new_tenq = [d for d in tenq_docs if d.page_content[:100] not in seen_content]
-                retrieved_docs = new_tenq + retrieved_docs
-            except Exception:
-                pass
-        context_str = format_docs(retrieved_docs)
+            # Step 7: Retrieve docs from 10-K + 10-Q
+            retrieved_docs = await retriever.ainvoke(question)
+            if tenq_retriever:
+                try:
+                    tenq_docs = await tenq_retriever.ainvoke(question)
+                    seen_content = {d.page_content[:100] for d in retrieved_docs}
+                    new_tenq = [d for d in tenq_docs if d.page_content[:100] not in seen_content]
+                    retrieved_docs = new_tenq + retrieved_docs
+                except Exception:
+                    pass
 
-        prompt_value = await prompt.ainvoke({
-            "context": context_str,
-            "question": question,
-            "ticker": ticker.upper(),
-            "live_context": live_context,
-        })
+            context_str = format_docs(retrieved_docs)
+            prompt_value = await filing_prompt.ainvoke({
+                "context": context_str,
+                "question": question,
+                "ticker": ticker.upper(),
+                "live_context": live_context,
+            })
 
         # Step 8: Call LLM directly to capture usage_metadata
         llm_response = await llm.ainvoke(prompt_value)
