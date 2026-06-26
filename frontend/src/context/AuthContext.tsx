@@ -29,20 +29,20 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 
-async function fetchProfile(userId: string, _accessToken: string): Promise<UserProfile | null> {
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+async function fetchProfile(_userId: string, accessToken: string): Promise<UserProfile | null> {
   try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, email, role, token_budget, tokens_consumed")
-      .eq("id", userId)
-      .single();
-    if (error) {
-      console.error("fetchProfile error:", error.code, error.message);
+    const res = await fetch(`${BASE_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      console.error("fetchProfile /api/auth/me", res.status);
       return null;
     }
-    if (!data) return null;
+    const data = await res.json();
     return {
-      user_id: data.id,
+      user_id: data.user_id,
       email: data.email,
       role: data.role as UserRole,
       token_budget: data.token_budget ?? 50000,

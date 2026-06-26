@@ -1,6 +1,9 @@
--- 1. Ensure columns exist (safe to re-run)
+-- 1. Ensure columns exist and backfill nulls (safe to re-run)
 alter table profiles
-  add column if not exists tokens_consumed int not null default 0;
+  add column if not exists tokens_consumed int default 0;
+
+-- Backfill any existing null values to 0
+update profiles set tokens_consumed = 0 where tokens_consumed is null;
 
 alter table query_logs
   add column if not exists tokens_used int not null default 0,

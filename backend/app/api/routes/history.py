@@ -29,13 +29,23 @@ async def get_history(user: AuthenticatedUser = Depends(require_approved)):
         supabase = get_supabase_client()
         resp = (
             supabase.table("query_logs")
-            .select("id, ticker, question, mode, session_id, created_at, tokens_used")
-            .eq("user_id", user.user_id)
+            .select("id, ticker, question, mode, created_at, session_id, tokens_used")
+            .or_(f"user_id.eq.{user.user_id},user_id.is.null")
             .order("created_at", desc=True)
             .limit(200)
             .execute()
         )
-        rows = [QueryLogRow(**r) for r in (resp.data or [])]
+        rows = []
+        for r in (resp.data or []):
+            rows.append(QueryLogRow(
+                id=r["id"],
+                ticker=r["ticker"],
+                question=r["question"],
+                mode=r["mode"],
+                created_at=r["created_at"],
+                session_id=r.get("session_id"),
+                tokens_used=r.get("tokens_used"),
+            ))
         return HistoryResponse(entries=rows)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -2,6 +2,20 @@ import { useState, useEffect, useCallback } from "react";
 import { MessageSquare, ChevronDown, ChevronRight, Plus, Clock, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+async function fetchHistoryFromBackend(): Promise<QueryLogEntry[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return [];
+  const res = await fetch(`${BASE_URL}/api/history`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return (json.entries ?? []) as QueryLogEntry[];
+}
+
 interface QueryLogEntry {
   id: string;
   ticker: string;
@@ -47,13 +61,12 @@ export default function ChatHistory({ currentSessionId, currentTicker, onSelectS
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("query_logs")
-        .select("id, ticker, question, mode, session_id, created_at")
-        .order("created_at", { ascending: false })
-        .limit(200);
+      const data = await fetchHistoryFromBackend();
 
-      if (error || !data) return;
+      if (!data.length) {
+        setSessions([]);
+        return;
+      }
 
       // Group by session_id, fall back to ticker+date bucket if null
       const sessionMap = new Map<string, QueryLogEntry[]>();
