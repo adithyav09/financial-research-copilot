@@ -46,6 +46,7 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
                 "user_id": user.user_id,
                 "session_id": request.session_id,
                 "tokens_used": tokens_used,
+                "answer": result["answer"],
             }
             supabase.table("query_logs").insert(log_data).execute()
             # Atomically increment tokens_consumed in profiles

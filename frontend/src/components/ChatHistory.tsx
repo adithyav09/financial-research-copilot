@@ -20,6 +20,7 @@ interface QueryLogEntry {
   id: string;
   ticker: string;
   question: string;
+  answer: string | null;
   mode: string;
   session_id: string | null;
   created_at: string;

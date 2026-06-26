@@ -219,9 +219,30 @@ export default function App() {
                 setIngestMessage(null);
                 setMarketData(null);
                 setXbrlData(null);
-                setMessages([]);
                 stopPolling();
                 pendingQuestionRef.current = null;
+                // Restore Q&A pairs as chat messages
+                const restored: ChatMessage[] = [];
+                for (const entry of session.entries) {
+                  restored.push({
+                    id: `h-user-${entry.id}`,
+                    role: "user",
+                    content: entry.question,
+                    timestamp: new Date(entry.created_at),
+                  });
+                  if (entry.answer) {
+                    restored.push({
+                      id: `h-asst-${entry.id}`,
+                      role: "assistant",
+                      content: entry.answer,
+                      mode: entry.mode as AnalysisMode,
+                      timestamp: new Date(entry.created_at),
+                      question: entry.question,
+                    });
+                  }
+                }
+                setMessages(restored);
+                setSessionId(session.session_id);
               }}
             />
           </div>

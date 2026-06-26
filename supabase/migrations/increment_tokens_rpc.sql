@@ -7,7 +7,8 @@ update profiles set tokens_consumed = 0 where tokens_consumed is null;
 
 alter table query_logs
   add column if not exists tokens_used int not null default 0,
-  add column if not exists session_id text;
+  add column if not exists session_id text,
+  add column if not exists answer text;
 
 -- 2. RPC to atomically increment tokens_consumed.
 --    Uses text cast so it works regardless of UUID storage format.

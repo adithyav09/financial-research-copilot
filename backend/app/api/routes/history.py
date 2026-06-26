@@ -12,6 +12,7 @@ class QueryLogRow(BaseModel):
     id: str
     ticker: str
     question: str
+    answer: Optional[str] = None
     mode: str
     session_id: Optional[str] = None
     created_at: str
@@ -29,7 +30,7 @@ async def get_history(user: AuthenticatedUser = Depends(require_approved)):
         supabase = get_supabase_client()
         resp = (
             supabase.table("query_logs")
-            .select("id, ticker, question, mode, created_at, session_id, tokens_used")
+            .select("id, ticker, question, answer, mode, created_at, session_id, tokens_used")
             .or_(f"user_id.eq.{user.user_id},user_id.is.null")
             .order("created_at", desc=True)
             .limit(200)
@@ -41,6 +42,7 @@ async def get_history(user: AuthenticatedUser = Depends(require_approved)):
                 id=r["id"],
                 ticker=r["ticker"],
                 question=r["question"],
+                answer=r.get("answer"),
                 mode=r["mode"],
                 created_at=r["created_at"],
                 session_id=r.get("session_id"),
