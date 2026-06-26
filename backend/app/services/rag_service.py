@@ -35,6 +35,21 @@ CONTEXT_ONLY_INSTRUCTION = (
     "Never use outside knowledge or make claims not supported by the filing."
 )
 
+CITATION_INSTRUCTION = (
+    "When you use information from the context, insert an inline citation marker like [1], [2], etc. "
+    "Each number corresponds to the source chunk it came from, in the order they appear. "
+    "Example: 'Revenue grew 6% to $416B [1], driven by iPhone sales [2].' "
+    "Use the same number if you reference the same source again."
+)
+
+EDUCATIONAL_INSTRUCTION = (
+    "Write for someone who is new to investing. After presenting each financial metric or concept, "
+    "add a brief plain-English explanation in parentheses of what it means and why it matters. "
+    "For example: 'Free cash flow was $108B (this is the cash left over after the company pays "
+    "for its operations and investments — more cash means more flexibility to grow or return "
+    "money to shareholders).' Keep explanations short and jargon-free."
+)
+
 _PREFIX = f"{DISCLAIMER}\n\n{NO_ADVICE_INSTRUCTION}\n\n"
 
 
@@ -84,8 +99,10 @@ MODE_SYSTEM_PROMPTS = {
 
 
 def format_docs(docs):
-    """Format retrieved documents for the prompt."""
-    return "\n\n".join(doc.page_content for doc in docs)
+    """Format retrieved documents with numbered citations for the prompt."""
+    return "\n\n".join(
+        f"[{i+1}] {doc.page_content}" for i, doc in enumerate(docs)
+    )
 
 
 async def check_ticker_ingested(ticker: str) -> bool:
@@ -159,12 +176,18 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode) -> dict:
         system_prompt = (
             MODE_SYSTEM_PROMPTS[mode]
             + "\n\n" + CONTEXT_ONLY_INSTRUCTION
-            + " Always cite specific sections and direct quotes from the filing."
+            + "\n\n" + CITATION_INSTRUCTION
+            + "\n\n" + EDUCATIONAL_INSTRUCTION
         )
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
-            ("human", "Context from {ticker} 10-K filing:\n\n{context}\n\nQuestion: {question}")
+            ("human", (
+                "Context from {ticker} 10-K filing "
+                "(each passage is numbered for inline citations):\n\n"
+                "{context}\n\n"
+                "Question: {question}"
+            ))
         ])
         
         # Step 6: Build LCEL chain
