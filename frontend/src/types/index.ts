@@ -1,4 +1,11 @@
-export type AnalysisMode = "value" | "growth";
+export type AnalysisMode =
+  | "value"
+  | "growth"
+  | "income"
+  | "quality"
+  | "risk_averse"
+  | "esg"
+  | "activist";
 
 export interface IngestRequest {
   ticker: string;

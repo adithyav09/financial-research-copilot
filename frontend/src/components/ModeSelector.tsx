@@ -1,5 +1,13 @@
 import type { AnalysisMode } from "../types";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import {
+  TrendingDown,
+  TrendingUp,
+  Coins,
+  Award,
+  ShieldCheck,
+  Leaf,
+  Swords,
+} from "lucide-react";
 
 interface ModeSelectorProps {
   mode: AnalysisMode;
@@ -18,6 +26,36 @@ const modes: { id: AnalysisMode; label: string; icon: typeof TrendingDown; descr
     label: "Growth",
     icon: TrendingUp,
     description: "Revenue, R&D, expansion",
+  },
+  {
+    id: "income",
+    label: "Income",
+    icon: Coins,
+    description: "Dividends, payout, cash coverage",
+  },
+  {
+    id: "quality",
+    label: "Quality",
+    icon: Award,
+    description: "ROE, ROIC, moats, margins",
+  },
+  {
+    id: "risk_averse",
+    label: "Risk-Averse",
+    icon: ShieldCheck,
+    description: "Leverage, coverage, risk factors",
+  },
+  {
+    id: "esg",
+    label: "ESG",
+    icon: Leaf,
+    description: "Governance, board, sustainability",
+  },
+  {
+    id: "activist",
+    label: "Activist",
+    icon: Swords,
+    description: "Insiders, buybacks, accounting",
   },
 ];
 
