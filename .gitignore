@@ -1,33 +1,56 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 *.egg-info/
 dist/
 build/
 .venv/
 venv/
 env/
+*.egg
 
 # Node
 node_modules/
 dist/
 
-# Environment
+# Environment — NEVER commit secrets
 .env
+.env.local
 *.env.local
+.env.production
+
+# Test & coverage artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.orig
 
 # ChromaDB
 chroma_db/
 
 # OS
 .DS_Store
+.DS_Store?
 Thumbs.db
+ehthumbs.db
 
 # Docker
 *.log
+
+# Build outputs
+*.pyc
+*.pyd
+*.so
