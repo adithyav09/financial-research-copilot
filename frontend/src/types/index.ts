@@ -102,6 +102,16 @@ export interface XBRLFinancials {
   eps_diluted_series?: XBRLDataPoint[];
 }
 
+export interface TickerCompany {
+  ticker: string;
+  title: string;
+  cik_str: number;
+}
+
+export interface TickerSearchResponse {
+  results: TickerCompany[];
+}
+
 export interface SuggestionsRequest {
   ticker: string;
   previous_answer: string;

@@ -20,7 +20,7 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
     supabase = get_supabase_client()
     
     try:
-        # Step 1: Insert initial Supabase row
+        # Step 1: Insert initial supabase row
         ingestion_data = {
             "ticker": ticker,
             "filing_type": "10-K",

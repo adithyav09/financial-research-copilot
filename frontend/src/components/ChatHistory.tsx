@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { MessageSquare, ChevronDown, ChevronRight, Plus, Clock, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import type { Citation } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -24,6 +25,7 @@ interface QueryLogEntry {
   mode: string;
   session_id: string | null;
   created_at: string;
+  citations?: Citation[];
 }
 
 interface GroupedSession {

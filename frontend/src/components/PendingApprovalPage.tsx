@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Clock, LogOut } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 

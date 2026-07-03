@@ -34,6 +34,65 @@ def _fmt(v: float) -> str:
     return f"${v:,.0f}"
 
 
+def _parse_news_item(item: Dict, today: datetime.datetime) -> Optional[Dict[str, Any]]:
+    """Normalize a yfinance news item into a flat dict.
+
+    Yahoo changed the news schema: each item is now {'id', 'content': {...}} with
+    the real fields nested under 'content' (pubDate is an ISO-8601 string,
+    publisher under provider.displayName, url under canonicalUrl/clickThroughUrl).
+    Falls back to the old flat schema so both formats work. Returns None if the
+    item has no title.
+    """
+    content = item.get("content") if isinstance(item.get("content"), dict) else item
+
+    title = content.get("title") or item.get("title") or item.get("headline") or ""
+    if not title:
+        return None
+
+    provider = content.get("provider") if isinstance(content.get("provider"), dict) else {}
+    publisher = (
+        provider.get("displayName")
+        or item.get("publisher")
+        or (item.get("source") or {}).get("name", "")
+        or ""
+    )
+
+    url = ""
+    for key in ("canonicalUrl", "clickThroughUrl"):
+        u = content.get(key)
+        if isinstance(u, dict) and u.get("url"):
+            url = u["url"]
+            break
+    if not url:
+        url = item.get("link") or item.get("url") or ""
+
+    # New schema: pubDate is an ISO-8601 string. Old schema: providerPublishTime
+    # is a unix timestamp. Support both.
+    date_str, age_days = "", 99
+    pub_date = content.get("pubDate") or content.get("displayTime")
+    pub_ts = item.get("providerPublishTime") or item.get("publishedAt")
+    try:
+        if pub_date:
+            dt = datetime.datetime.fromisoformat(str(pub_date).replace("Z", "+00:00"))
+            dt = dt.replace(tzinfo=None)
+            date_str = dt.strftime("%b %d, %Y")
+            age_days = (today - dt).days
+        elif pub_ts:
+            dt = datetime.datetime.utcfromtimestamp(int(pub_ts))
+            date_str = dt.strftime("%b %d, %Y")
+            age_days = (today - dt).days
+    except Exception:
+        date_str, age_days = "", 99
+
+    return {
+        "title": title,
+        "publisher": publisher,
+        "date": date_str,
+        "age_days": age_days,
+        "url": url,
+    }
+
+
 async def fetch_market_data(ticker: str) -> Dict:
     """
     Fetch live market data for a given ticker using yfinance.
@@ -138,30 +197,11 @@ async def fetch_market_data(ticker: str) -> Dict:
         # --- Latest news headlines ---
         news: List[Dict[str, str]] = []
         try:
-            raw_news = t.news or []
             today = datetime.datetime.utcnow()
-            for item in raw_news[:8]:
-                title = item.get("title") or item.get("headline") or ""
-                publisher = item.get("publisher") or item.get("source", {}).get("name", "")
-                pub_ts = item.get("providerPublishTime") or item.get("publishedAt")
-                if pub_ts:
-                    try:
-                        dt = datetime.datetime.utcfromtimestamp(int(pub_ts))
-                        age_days = (today - dt).days
-                        date_str = dt.strftime("%b %d, %Y")
-                    except Exception:
-                        age_days = 99
-                        date_str = ""
-                else:
-                    age_days = 99
-                    date_str = ""
-                if title:
-                    news.append({
-                        "title": title,
-                        "publisher": publisher,
-                        "date": date_str,
-                        "age_days": age_days,
-                    })
+            for item in (t.news or [])[:8]:
+                parsed = _parse_news_item(item, today)
+                if parsed:
+                    news.append(parsed)
         except Exception:
             pass
 
@@ -176,33 +216,12 @@ async def fetch_news(ticker: str) -> List[Dict[str, str]]:
     """Standalone news fetch for the /api/news endpoint."""
     try:
         t = yf.Ticker(ticker)
-        raw_news = t.news or []
         today = datetime.datetime.utcnow()
         results = []
-        for item in raw_news[:15]:
-            title = item.get("title") or item.get("headline") or ""
-            publisher = item.get("publisher") or item.get("source", {}).get("name", "")
-            pub_ts = item.get("providerPublishTime") or item.get("publishedAt")
-            url = item.get("link") or item.get("url") or ""
-            if pub_ts:
-                try:
-                    dt = datetime.datetime.utcfromtimestamp(int(pub_ts))
-                    date_str = dt.strftime("%b %d, %Y")
-                    age_days = (today - dt).days
-                except Exception:
-                    date_str = ""
-                    age_days = 99
-            else:
-                date_str = ""
-                age_days = 99
-            if title:
-                results.append({
-                    "title": title,
-                    "publisher": publisher,
-                    "date": date_str,
-                    "age_days": age_days,
-                    "url": url,
-                })
+        for item in (t.news or [])[:15]:
+            parsed = _parse_news_item(item, today)
+            if parsed:
+                results.append(parsed)
         return results
     except Exception:
         return []

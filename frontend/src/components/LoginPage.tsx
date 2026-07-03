@@ -1,4 +1,3 @@
-import React from "react";
 import { BarChart2, Github } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 

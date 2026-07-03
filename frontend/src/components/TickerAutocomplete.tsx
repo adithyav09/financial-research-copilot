@@ -1,29 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Search, Loader2 } from "lucide-react";
-
-interface CompanyEntry {
-  cik_str: number;
-  ticker: string;
-  title: string;
-}
-
-let cachedTickers: CompanyEntry[] | null = null;
-
-async function loadTickers(): Promise<CompanyEntry[]> {
-  if (cachedTickers) return cachedTickers;
-  const res = await fetch("https://www.sec.gov/files/company_tickers.json");
-  const raw: Record<string, CompanyEntry> = await res.json();
-  cachedTickers = Object.values(raw);
-  return cachedTickers;
-}
+import { api } from "../api/client";
+import type { TickerCompany as CompanyEntry } from "../types";
 
 interface Props {
   value: string;
   onChange: (ticker: string, companyName?: string) => void;
   placeholder?: string;
+  autoFocus?: boolean;
+  size?: "sm" | "lg";
 }
 
-export default function TickerAutocomplete({ value, onChange, placeholder = "Ticker — AAPL, MSFT…" }: Props) {
+export default function TickerAutocomplete({ value, onChange, placeholder = "Search a company or ticker — Apple, AAPL…", autoFocus = false, size = "sm" }: Props) {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<CompanyEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,30 +43,45 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
     if (q.length < 1) { setResults([]); setOpen(false); return; }
     setLoading(true);
     try {
-      const all = await loadTickers();
-      const upper = q.toUpperCase();
-      const tickerMatches = all.filter(e => e.ticker.startsWith(upper));
-      const nameMatches = all.filter(e =>
-        !e.ticker.startsWith(upper) && e.title.toUpperCase().includes(upper)
-      );
-      setResults([...tickerMatches, ...nameMatches].slice(0, 8));
+      const res = await api.tickers(q, 8);
+      setResults(res.results);
       setOpen(true);
       setHighlighted(0);
+    } catch {
+      // Backend/SEC hiccup — keep the field usable; Enter still commits the raw value.
+      setResults([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toUpperCase();
+    // Keep the user's text as typed — they may be searching by company name.
+    const val = e.target.value;
     setQuery(val);
-    // Don't propagate every keystroke — only propagate on selection or Enter
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => search(val), 180);
   };
 
+  // A bare typed value is only committed as a ticker if it looks like one (short,
+  // no spaces). Longer text is a name search and must be picked from the dropdown,
+  // so we never mistakenly treat "Apple" as the ticker APPLE.
+  const looksLikeTicker = (s: string) => /^[A-Za-z.\-]{1,6}$/.test(s.trim());
+
+  const commitRaw = (raw: string): boolean => {
+    const val = raw.trim();
+    if (!val || !looksLikeTicker(val)) return false;
+    const up = val.toUpperCase();
+    setQuery(up);
+    prevValueRef.current = up;
+    onChange(up);
+    setOpen(false);
+    return true;
+  };
+
   const select = (entry: CompanyEntry) => {
     setQuery(entry.ticker);
+    prevValueRef.current = entry.ticker;
     onChange(entry.ticker, entry.title);
     setOpen(false);
   };
@@ -86,13 +89,8 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (open && results[highlighted]) {
-        select(results[highlighted]);
-      } else {
-        // Commit raw typed value on Enter even without dropdown
-        const val = (e.target as HTMLInputElement).value.toUpperCase();
-        if (val) { onChange(val); setOpen(false); prevValueRef.current = val; }
-      }
+      if (open && results[highlighted]) select(results[highlighted]);
+      else commitRaw((e.target as HTMLInputElement).value);
       return;
     }
     if (!open) return;
@@ -102,22 +100,23 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
   };
 
   const handleBlur = () => {
-    // Commit on blur so pasting or typing without dropdown still works
+    // Only auto-commit ticker-like text on blur (supports pasting a symbol);
+    // a half-typed company name is left alone until the user picks a result.
     setTimeout(() => {
       setOpen(false);
-      if (query && query !== value) {
-        prevValueRef.current = query;
-        onChange(query);
-      }
+      if (query && query.toUpperCase() !== value) commitRaw(query);
     }, 150);
   };
+
+  const inputSize = size === "lg" ? "py-3 pl-10 text-base" : "py-2 pl-8 text-sm";
+  const iconPos = size === "lg" ? "left-3.5 w-4 h-4" : "left-3 w-3.5 h-3.5";
 
   return (
     <div className="relative" ref={wrapperRef}>
       <div className="relative">
         {loading
-          ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 animate-spin pointer-events-none" />
-          : <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />}
+          ? <Loader2 className={`absolute top-1/2 -translate-y-1/2 text-gray-500 animate-spin pointer-events-none ${iconPos}`} />
+          : <Search className={`absolute top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none ${iconPos}`} />}
         <input
           type="text"
           value={query}
@@ -126,10 +125,11 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Tic
           onBlur={handleBlur}
           onFocus={() => query.length > 0 && results.length > 0 && setOpen(true)}
           placeholder={placeholder}
-          maxLength={10}
+          maxLength={48}
+          autoFocus={autoFocus}
           autoComplete="off"
           spellCheck={false}
-          className="w-full pl-8 pr-3 py-2 bg-surface rounded-lg border border-border text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all font-mono tracking-wider"
+          className={`w-full pr-3 bg-surface rounded-lg border border-border text-white placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all ${inputSize}`}
         />
       </div>
 

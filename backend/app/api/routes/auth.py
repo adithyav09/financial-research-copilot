@@ -20,7 +20,7 @@ router = APIRouter()
 @router.get("/auth/me", response_model=UserProfileResponse)
 async def get_me(user: AuthenticatedUser = Depends(get_current_user)) -> UserProfileResponse:
     """
-    Return the current user's profile including role and token usage.
+    Return the current user's profile, including role and token usage.
     Used by the frontend to determine what UI to show after sign-in.
     """
     supabase = get_supabase_client()

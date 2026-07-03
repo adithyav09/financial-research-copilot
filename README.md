@@ -93,7 +93,16 @@ cp backend/.env.example backend/.env    # fill in your keys
 cp frontend/.env.example frontend/.env
 ```
 
+`backend/.env` needs, at minimum: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`. Get the Supabase values from your project's **Settings → API** page. `frontend/.env` needs the matching `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+
 Run `python scripts/check_env.py` to verify all variables are set.
+
+#### Supabase setup (auth + database)
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Run the SQL files under `supabase/migrations/` in the SQL editor (in order) to create the `profiles`, `access_requests`, `ingestion_jobs`, and `query_logs` tables plus the `increment_tokens_consumed` RPC.
+3. Enable **GitHub** as an OAuth provider under **Authentication → Providers**, and register an OAuth app in your GitHub account settings with the callback URL Supabase gives you.
+4. The first user who signs in has `role = pending` by default and won't be able to query or ingest until an admin approves them (`POST /api/auth/approve/{user_id}`). To bootstrap your first admin, sign in once, then manually set `role = 'admin'` for your row in the `profiles` table via the Supabase dashboard.
 
 ### 2. Backend
 
@@ -120,6 +129,33 @@ docker-compose up --build
 ```
 
 Backend: http://localhost:8000 · Frontend: http://localhost:5173
+
+---
+
+## Testing the API without the frontend (Swagger / curl)
+
+Sign-in is GitHub OAuth, handled client-side by the Supabase JS SDK — there's no backend login endpoint that issues a token. Every protected route expects a Supabase access token in an `Authorization: Bearer <token>` header (see `app/core/auth.py`).
+
+To exercise the API directly (e.g. via the FastAPI docs at http://localhost:8000/docs) without going through the GitHub OAuth flow each time, use the dev helper script, which creates (once) and signs in as a fixed local test user via the Supabase admin API:
+
+```bash
+cd backend && source .venv/bin/activate
+python scripts/get_test_token.py
+```
+
+This prints an access token. To use it:
+
+- **Swagger UI**: open `/docs`, click **Authorize**, paste the token (no `Bearer` prefix), click **Authorize** → **Close**. All protected endpoints will now send it automatically.
+- **curl**:
+  ```bash
+  TOKEN=$(python scripts/get_test_token.py 2>/dev/null)
+  curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/auth/me
+  ```
+
+Notes:
+- The script reuses the same test identity every run (override with `TEST_EMAIL`/`TEST_PASSWORD` env vars); only the token itself is short-lived (~1 hour) and needs to be re-minted after it expires.
+- A freshly created test user has no `profiles` row until your Supabase project's signup trigger creates one, and defaults to `role = pending`. `GET /api/auth/me` will 404 until the row exists; `POST /api/query` and `POST /api/ingest` will 403 until the role is `approved` or `admin`. Set the role directly in the `profiles` table for local testing.
+- This script requires `SUPABASE_SERVICE_KEY` in `backend/.env` (admin-level) — never expose that key to the frontend or commit it.
 
 ---
 

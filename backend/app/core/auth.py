@@ -136,7 +136,7 @@ async def require_approved(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     """
-    FastAPI dependency: require approved or admin role.
+    FastAPI dependency: require an approved or admin role.
     Raises 403 if the user's role is pending or denied.
     """
     if not user.is_approved:

@@ -7,8 +7,8 @@ import ChatHistory from "./components/ChatHistory";
 import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
-import { api } from "./api/client";
-import type { AnalysisMode, ChatMessage, MarketData, XBRLFinancials } from "./types";
+import { api, needsIngestion } from "./api/client";
+import type { AnalysisMode, ChatMessage, MarketData, QueryResponse, XBRLFinancials } from "./types";
 
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
@@ -16,6 +16,7 @@ export default function App() {
   const { session, profile, loading, refreshProfile } = useAuth();
   const [backendStatus, setBackendStatus] = useState<"healthy" | "offline" | "checking">("checking");
   const [ticker, setTicker] = useState("");
+  const [companyName, setCompanyName] = useState<string | null>(null);
   const [mode, setMode] = useState<AnalysisMode>("value");
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>("idle");
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
@@ -40,89 +41,94 @@ export default function App() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
-  const fireQuery = async (question: string, t: string) => {
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
+  const assistantMessage = (res: QueryResponse, question: string): ChatMessage => ({
+    id: crypto.randomUUID(),
+    role: "assistant",
+    content: res.answer,
+    citations: res.citations,
+    mode: res.mode,
+    timestamp: new Date(),
+    question,
+  });
+
+  // Load sidebar market + historical data and (best-effort) filing status for a ticker.
+  const loadTickerData = (t: string) => {
+    api.marketData(t).then(d => {
+      setMarketData(d);
+      if (d?.company_name) setCompanyName(d.company_name);
+    }).catch(() => {});
+    api.xbrl(t).then(setXbrlData).catch(() => {});
+    api.status(t).then(s => {
+      if (s?.status === "ready") {
+        setIngestPhase(prev => (prev === "idle" ? "ready" : prev));
+        setIngestMessage(`Annual report ready${s.filing_year ? ` · FY${s.filing_year}` : ""}`);
+        if (s.is_stale && s.filing_year && s.latest_sec_year) {
+          setStaleInfo({ ingestedYear: s.filing_year, latestYear: s.latest_sec_year });
+        } else {
+          setStaleInfo(null);
+        }
+      }
+    }).catch(() => {});
+  };
+
+  // Selecting a company resets per-ticker state and eagerly loads its market data.
+  const handleTickerChange = (t: string, name?: string) => {
+    const up = t.trim().toUpperCase();
+    setTicker(up);
+    setCompanyName(name ?? null);
+    setIngestPhase("idle");
+    setIngestMessage(null);
+    setMarketData(null);
+    setXbrlData(null);
+    setStaleInfo(null);
+    stopPolling();
+    pendingQuestionRef.current = null;
+    if (up) loadTickerData(up);
+  };
+
+  // The single query path. The backend decides live-vs-filing; when it signals a
+  // filing must be ingested first (409 needs_ingestion), we ingest, poll, and retry
+  // the same question once. No frontend keyword list — one source of truth.
+  const submitQuery = async (question: string, t: string, retriedAfterIngest = false) => {
     setIsQuerying(true);
     try {
       const res = await api.query({ ticker: t, question, mode, session_id: sessionId });
-      const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: res.answer, citations: res.citations, mode: res.mode, timestamp: new Date(), question };
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages(prev => [...prev, assistantMessage(res, question)]);
+      setIngestPhase("ready");
       refreshProfile().catch(() => {});
     } catch (err: unknown) {
+      if (needsIngestion(err) && !retriedAfterIngest) {
+        await ingestThenRetry(question, t);
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Unknown error";
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${msg}`, timestamp: new Date(), question }]);
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(), role: "assistant",
+        content: `Error: ${msg}`, timestamp: new Date(), question,
+      }]);
     } finally {
       setIsQuerying(false);
     }
   };
 
-  const isLiveQuestion = (q: string) => {
-    const lower = q.toLowerCase();
-    return ["news","latest","recent","today","this week","this month","current",
-            "right now","as of","stock price","share price","analyst","rating",
-            "upgrade","downgrade","earnings call","guidance","forecast","outlook",
-            "quarter","q1","q2","q3","q4","ttm","trailing"].some(p => lower.includes(p));
-  };
-
-  const ensureIngestedThenQuery = async (question: string, t: string) => {
-    setIngestMessage(null);
-
-    // Live/news questions don't need an ingested filing — fire directly
-    if (isLiveQuestion(question)) {
-      setIngestPhase("ready");
-      api.marketData(t).then(setMarketData).catch(() => {});
-      api.xbrl(t).then(setXbrlData).catch(() => {});
-      await fireQuery(question, t);
-      return;
-    }
-
-    // Step 1: Check current status
-    setIngestPhase("checking");
-    let statusData;
-    try {
-      statusData = await api.status(t);
-    } catch {
-      statusData = null;
-    }
-
-    if (statusData?.status === "ready") {
-      setIngestPhase("ready");
-      setIngestMessage(`${statusData.filing_type ?? "10-K"} · ${statusData.filing_year ?? ""} · ${statusData.chunk_count} chunks`);
-      if (statusData.is_stale && statusData.filing_year && statusData.latest_sec_year) {
-        setStaleInfo({ ingestedYear: statusData.filing_year, latestYear: statusData.latest_sec_year });
-      } else {
-        setStaleInfo(null);
-      }
-      api.marketData(t).then(setMarketData).catch(() => {});
-      api.xbrl(t).then(setXbrlData).catch(() => {});
-      await fireQuery(question, t);
-      return;
-    }
-
-    if (statusData?.status === "processing") {
-      setIngestPhase("polling");
-      setIngestMessage(`Fetching ${t}'s latest 10-K from SEC EDGAR… this takes ~30s the first time`);
-      pendingQuestionRef.current = question;
-      startPolling(t);
-      return;
-    }
-
-    // status not found or failed — trigger ingest
-    setIngestPhase("ingesting");
-    setIngestMessage(`Fetching ${t}'s latest 10-K from SEC EDGAR… this takes ~30s the first time`);
+  const ingestThenRetry = async (question: string, t: string) => {
     pendingQuestionRef.current = question;
+    setIngestMessage(`Loading ${t}'s annual report… this takes about 30 seconds the first time`);
     try {
-      await api.ingest({ ticker: t });
+      // If ingestion is already running (e.g. a prior question kicked it off), just poll.
+      const existing = await api.status(t).catch(() => null);
+      if (existing?.status !== "processing") {
+        setIngestPhase("ingesting");
+        await api.ingest({ ticker: t });
+      }
+      setIngestPhase("polling");
+      startPolling(t);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setIngestPhase("error");
-      setIngestMessage(`Failed to fetch filing: ${msg}`);
+      setIngestMessage(`Couldn't load the filing: ${msg}`);
       pendingQuestionRef.current = null;
-      return;
     }
-    setIngestPhase("polling");
-    startPolling(t);
   };
 
   const startPolling = (t: string) => {
@@ -133,16 +139,15 @@ export default function App() {
         if (s.status === "ready") {
           stopPolling();
           setIngestPhase("ready");
-          setIngestMessage(`${s.filing_type ?? "10-K"} · ${s.filing_year ?? ""} · ${s.chunk_count} chunks`);
-          api.marketData(t).then(setMarketData).catch(() => {});
-          api.xbrl(t).then(setXbrlData).catch(() => {});
+          setIngestMessage(`Annual report ready${s.filing_year ? ` · FY${s.filing_year}` : ""}`);
+          loadTickerData(t);
           const q = pendingQuestionRef.current;
           pendingQuestionRef.current = null;
-          if (q) await fireQuery(q, t);
+          if (q) await submitQuery(q, t, true);
         } else if (s.status === "failed") {
           stopPolling();
           setIngestPhase("error");
-          setIngestMessage(`Ingestion failed: ${s.error_message ?? "unknown error"}`);
+          setIngestMessage(`Couldn't load the filing: ${s.error_message ?? "unknown error"}`);
           pendingQuestionRef.current = null;
         }
       } catch { /* keep polling */ }
@@ -152,13 +157,12 @@ export default function App() {
   useEffect(() => stopPolling, []);
 
   const handleSend = async (question: string) => {
-    if (!ticker.trim()) return;
-    // Live questions bypass ingestion entirely; filing questions always verify ingestion first
-    if (ingestPhase === "ready" && isLiveQuestion(question)) {
-      await fireQuery(question, ticker);
-      return;
-    }
-    await ensureIngestedThenQuery(question, ticker);
+    const t = ticker.trim();
+    if (!t || !question.trim()) return;
+    setMessages(prev => [...prev, {
+      id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date(),
+    }]);
+    await submitQuery(question, t);
   };
 
   // Auth gates — checked in order before showing the main app
@@ -198,10 +202,13 @@ export default function App() {
   const handleNewChat = () => {
     setMessages([]);
     setSessionId(crypto.randomUUID());
+    setTicker("");
+    setCompanyName(null);
     setIngestPhase("idle");
     setIngestMessage(null);
     setMarketData(null);
     setXbrlData(null);
+    setStaleInfo(null);
     stopPolling();
     pendingQuestionRef.current = null;
   };
@@ -231,9 +238,11 @@ export default function App() {
                 setIngestMessage(null);
                 setMarketData(null);
                 setXbrlData(null);
+                setStaleInfo(null);
                 stopPolling();
                 pendingQuestionRef.current = null;
-                // Restore Q&A pairs as chat messages
+                loadTickerData(session.ticker);
+                // Restore Q&A pairs as chat messages, including their saved citations
                 const restored: ChatMessage[] = [];
                 for (const entry of session.entries) {
                   restored.push({
@@ -247,6 +256,7 @@ export default function App() {
                       id: `h-asst-${entry.id}`,
                       role: "assistant",
                       content: entry.answer,
+                      citations: entry.citations ?? undefined,
                       mode: entry.mode as AnalysisMode,
                       timestamp: new Date(entry.created_at),
                       question: entry.question,
@@ -261,7 +271,6 @@ export default function App() {
         )}
         <Sidebar
           ticker={ticker}
-          onTickerChange={(t) => { setTicker(t); setIngestPhase("idle"); setIngestMessage(null); setMarketData(null); setXbrlData(null); setStaleInfo(null); stopPolling(); pendingQuestionRef.current = null; }}
           ingestPhase={ingestPhase}
           ingestMessage={ingestMessage}
           marketData={marketData}
@@ -269,7 +278,7 @@ export default function App() {
           onReIngest={() => {
             setStaleInfo(null);
             setIngestPhase("ingesting");
-            setIngestMessage(`Fetching latest ${ticker} 10-K from SEC EDGAR…`);
+            setIngestMessage(`Loading ${ticker}'s newest annual report…`);
             pendingQuestionRef.current = null;
             api.ingest({ ticker }).then(() => {
               setIngestPhase("polling");
@@ -286,6 +295,8 @@ export default function App() {
           onSend={handleSend}
           isLoading={isQuerying || ingestPhase === "ingesting" || ingestPhase === "polling" || ingestPhase === "checking"}
           ticker={ticker}
+          companyName={companyName}
+          onTickerChange={handleTickerChange}
           ingestPhase={ingestPhase}
           mode={mode}
           onModeChange={(m) => setMode(m as AnalysisMode)}

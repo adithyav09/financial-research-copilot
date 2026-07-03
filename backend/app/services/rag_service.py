@@ -3,6 +3,8 @@ RAG service for querying filings with analysis mode context.
 Real implementation with LCEL chain, ChromaDB, and OpenAI.
 """
 
+import urllib.parse
+
 from langchain_chroma import Chroma
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
@@ -35,7 +37,6 @@ LIVE_QUESTION_PATTERNS = [
     "upgrade", "downgrade", "earnings call", "guidance", "forecast", "outlook",
     "quarter", "q1", "q2", "q3", "q4", "ttm", "trailing",
 ]
-
 
 def _is_live_question(question: str) -> bool:
     """Return True if the question is primarily about current/recent data rather than filings."""
@@ -449,17 +450,28 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
                         url=f"https://finance.yahoo.com/quote/{ticker.upper()}/financials",
                     ))
             if market_data and market_data.get("news"):
-                news_items = market_data["news"]
-                news_text = " | ".join(
-                    f"[{n.get('date','')}] {n.get('title','')} ({n.get('publisher','')})"
-                    for n in news_items[:5]
-                )
-                citations.append(Citation(
-                    text=news_text,
-                    source=f"{ticker.upper()} — Yahoo Finance News Headlines",
-                    page="news",
-                    url=f"https://finance.yahoo.com/quote/{ticker.upper()}/news",
-                ))
+                # One citation per headline, linking to the actual article (not the
+                # generic /news page). A text fragment makes the browser scroll to and
+                # highlight the headline on the article page.
+                fallback_news = f"https://finance.yahoo.com/quote/{ticker.upper()}/news"
+                for n in market_data["news"][:5]:
+                    title = n.get("title", "")
+                    if not title:
+                        continue
+                    date = n.get("date", "")
+                    publisher = n.get("publisher", "")
+                    art_url = n.get("url")
+                    if art_url:
+                        frag = urllib.parse.quote(" ".join(title.split()[:8]))
+                        art_url = f"{art_url}#:~:text={frag}"
+                    else:
+                        art_url = fallback_news
+                    citations.append(Citation(
+                        text=f"[{date}] {title}" + (f" ({publisher})" if publisher else ""),
+                        source=f"{publisher or 'Yahoo Finance'} — news article",
+                        page="news",
+                        url=art_url,
+                    ))
             if xbrl_data:
                 citations.append(Citation(
                     text=f"Historical annual financials from SEC EDGAR XBRL data for {ticker.upper()}.",

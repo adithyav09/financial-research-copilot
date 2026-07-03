@@ -8,11 +8,35 @@ import type {
   StatusResponse,
   SuggestionsRequest,
   SuggestionsResponse,
+  TickerSearchResponse,
   XBRLFinancials,
 } from "../types";
 import { supabase } from "../lib/supabase";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+/**
+ * Error thrown for any non-2xx response. Carries the HTTP status and the parsed
+ * response body so callers can branch on it — e.g. a 409 with
+ * { detail: { needs_ingestion: true } } drives the ingest-then-retry flow.
+ */
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+  constructor(status: number, body: unknown, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** True when the backend signalled that this ticker needs a filing ingested first. */
+export function needsIngestion(err: unknown): err is ApiError {
+  if (!(err instanceof ApiError) || err.status !== 409) return false;
+  const detail = (err.body as { detail?: { needs_ingestion?: boolean } } | undefined)?.detail;
+  return detail?.needs_ingestion === true;
+}
 
 async function getAccessToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -33,8 +57,10 @@ async function request<T>(
   });
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(error.detail || "Request failed");
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    const detail = (body as { detail?: unknown }).detail;
+    const message = typeof detail === "string" ? detail : `Request failed (${res.status})`;
+    throw new ApiError(res.status, body, message);
   }
 
   return res.json();
@@ -69,4 +95,7 @@ export const api = {
 
   xbrl: (ticker: string) =>
     request<XBRLFinancials>(`/api/financials/${ticker}`),
+
+  tickers: (q: string, limit = 8) =>
+    request<TickerSearchResponse>(`/api/tickers?q=${encodeURIComponent(q)}&limit=${limit}`),
 };
