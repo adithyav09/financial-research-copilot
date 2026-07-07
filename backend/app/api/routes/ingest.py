@@ -56,7 +56,7 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
             }).eq("id", job_id).execute()
             raise HTTPException(status_code=500, detail=f"Failed to fetch 10-K: {str(filing_10k)}")
 
-        # Step 3: Ingest 10-K into ChromaDB
+        # Step 3: Ingest 10-K into the vector store
         try:
             chunks_10k = await ingest_filing(ticker, filing_10k)
         except Exception as e:
@@ -81,21 +81,18 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
                     "filing_date": filing_10q["filing_date"],
                     "filing_year": filing_10q["filing_year"],
                     "sec_url": filing_10q["url"],
-                    "chroma_collection": f"{ticker}_10-Q_{filing_10q['filing_year']}",
                     "user_id": user.user_id,
                 }).execute()
             except Exception:
                 chunks_10q = 0
 
         # Step 4: Update primary 10-K job row
-        collection_name = f"{ticker}_{filing_10k['filing_type']}_{filing_10k['filing_year']}"
         supabase.table("ingestion_jobs").update({
             "status": "ready",
             "chunk_count": chunks_10k,
             "filing_date": filing_10k["filing_date"],
             "filing_year": filing_10k["filing_year"],
             "sec_url": filing_10k["url"],
-            "chroma_collection": collection_name,
         }).eq("id", job_id).execute()
 
         extra = f" + 10-Q ({tenq_date}, {chunks_10q} chunks)" if chunks_10q else ""

@@ -11,7 +11,6 @@ services:
       - ./backend/.env
     volumes:
       - ./backend:/app
-      - chroma_data:/app/chroma_db
 
   frontend:
     build:
@@ -23,6 +22,3 @@ services:
       - ./frontend/.env
     depends_on:
       - backend
-
-volumes:
-  chroma_data:

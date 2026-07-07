@@ -1,11 +1,11 @@
 """
 RAG service for querying filings with analysis mode context.
-Real implementation with LCEL chain, ChromaDB, and OpenAI.
+Real implementation with LCEL chain, Supabase pgvector, and OpenAI.
 """
 
 import urllib.parse
 
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -14,7 +14,7 @@ from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 
 from app.models.schemas import AnalysisMode, Citation
 from app.core.config import settings
-from app.core.database import get_chroma_client, get_supabase_client
+from app.core.database import get_supabase_client
 from app.services.market_service import fetch_market_data
 from app.services.xbrl_service import fetch_xbrl_financials
 
@@ -221,18 +221,19 @@ def _format_market_context(ticker: str, market: dict | None, xbrl: dict | None) 
 
 
 async def check_ticker_ingested(ticker: str) -> bool:
-    """Check if a ticker has been ingested into ChromaDB."""
+    """Check if a ticker has a ready 10-K ingested."""
     try:
-        chroma_client = get_chroma_client()
-        collections = chroma_client.list_collections()
-        
-        # Look for collections that match the ticker pattern
-        ticker_collections = [
-            coll.name for coll in collections 
-            if coll.name.startswith(f"{ticker.upper()}_10-K_")
-        ]
-        
-        return len(ticker_collections) > 0
+        supabase = get_supabase_client()
+        resp = (
+            supabase.table("ingestion_jobs")
+            .select("id")
+            .eq("ticker", ticker.upper())
+            .eq("filing_type", "10-K")
+            .eq("status", "ready")
+            .limit(1)
+            .execute()
+        )
+        return bool(resp.data)
     except Exception:
         return False
 
@@ -275,35 +276,23 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
                     jobs_by_type[ft] = job
 
             primary_job = jobs_by_type.get("10-K") or all_jobs_resp.data[0]
-            collection_name = primary_job["chroma_collection"]
             sec_url = primary_job.get("sec_url")
 
-            # Step 2: Load ChromaDB collections
+            # Step 2: Set up the pgvector-backed vector store, filtered per filing type
             embeddings = OpenAIEmbeddings(
                 model=settings.embedding_model,
                 api_key=settings.openai_api_key
             )
 
-            chroma_client = get_chroma_client()
-            vectorstore = Chroma(
-                client=chroma_client,
-                collection_name=collection_name,
-                embedding_function=embeddings
+            vectorstore = SupabaseVectorStore(
+                client=supabase,
+                embedding=embeddings,
+                table_name="document_chunks",
+                query_name="match_document_chunks",
             )
 
             # Also load 10-Q vectorstore if available
-            tenq_vectorstore = None
-            if "10-Q" in jobs_by_type:
-                tenq_col = jobs_by_type["10-Q"].get("chroma_collection")
-                if tenq_col:
-                    try:
-                        tenq_vectorstore = Chroma(
-                            client=chroma_client,
-                            collection_name=tenq_col,
-                            embedding_function=embeddings,
-                        )
-                    except Exception:
-                        tenq_vectorstore = None
+            tenq_vectorstore = vectorstore if "10-Q" in jobs_by_type else None
 
         # Step 3: Initialize LLM
         llm = ChatOpenAI(
@@ -316,7 +305,10 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
         if not is_live:
             base_retriever = vectorstore.as_retriever(
                 search_type="similarity",
-                search_kwargs={"k": settings.retrieval_k}
+                search_kwargs={
+                    "k": settings.retrieval_k,
+                    "filter": {"ticker": ticker.upper(), "filing_type": "10-K"},
+                }
             )
             retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
 
@@ -324,7 +316,10 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
                 try:
                     tenq_base = tenq_vectorstore.as_retriever(
                         search_type="similarity",
-                        search_kwargs={"k": max(2, settings.retrieval_k // 2)}
+                        search_kwargs={
+                            "k": max(2, settings.retrieval_k // 2),
+                            "filter": {"ticker": ticker.upper(), "filing_type": "10-Q"},
+                        }
                     )
                     tenq_retriever = MultiQueryRetriever.from_llm(retriever=tenq_base, llm=llm)
                 except Exception:
