@@ -1,8 +1,36 @@
+import { useState } from "react";
 import { BarChart2, Github } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithGitHub } = useAuth();
+  const { signInWithGoogle, signInWithGitHub, signInWithPassword, signUpWithPassword } = useAuth();
+
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    setSubmitting(true);
+    try {
+      const err =
+        mode === "signin"
+          ? await signInWithPassword(email, password)
+          : await signUpWithPassword(email, password);
+      if (err) {
+        setError(err);
+      } else if (mode === "signup") {
+        setInfo("Check your email to confirm your account before signing in.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center px-4">
@@ -41,6 +69,60 @@ export default function LoginPage() {
             Continue with GitHub
           </button>
         </div>
+
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-gray-600">or</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-border bg-surface-secondary text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-border bg-surface-secondary text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          {info && <p className="text-xs text-emerald-400">{info}</p>}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-50 text-white text-sm font-medium transition-all"
+          >
+            {submitting ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
+          </button>
+
+          <p className="text-center text-xs text-gray-500">
+            {mode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setError(null);
+                setInfo(null);
+              }}
+              className="text-accent hover:underline"
+            >
+              {mode === "signin" ? "Sign up" : "Sign in"}
+            </button>
+          </p>
+        </form>
 
         <p className="text-center text-xs text-gray-600">
           After sign-in, you'll submit a brief access request. Approval is manual and typically same-day.
