@@ -1,13 +1,4 @@
 {
-  "builds": [
-    { "src": "backend/api/index.py", "use": "@vercel/python" },
-    { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "backend/api/index.py" },
-    { "src": "/(.*)", "dest": "/frontend/$1" }
-  ],
-  "functions": {
-    "backend/api/index.py": { "maxDuration": 60 }
-  }
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist"
 }
