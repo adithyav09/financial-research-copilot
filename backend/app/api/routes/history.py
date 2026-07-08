@@ -36,7 +36,7 @@ async def get_history(user: AuthenticatedUser = Depends(require_approved)):
             return (
                 supabase.table("query_logs")
                 .select(cols)
-                .or_(f"user_id.eq.{user.user_id},user_id.is.null")
+                .eq("user_id", user.user_id)
                 .order("created_at", desc=True)
                 .limit(200)
                 .execute()
