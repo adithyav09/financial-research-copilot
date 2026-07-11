@@ -17,6 +17,11 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
         raise HTTPException(status_code=400, detail="Ticker is required")
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question is required")
+    if user.is_over_budget:
+        raise HTTPException(
+            status_code=403,
+            detail="Token budget exceeded. Contact an admin to request more.",
+        )
 
     start_time = time.time()
 

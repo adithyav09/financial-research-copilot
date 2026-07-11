@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { BarChart2, Circle, LogOut, ChevronDown, History } from "lucide-react";
+import { BarChart2, Circle, LogOut, ChevronDown, History, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 interface NavbarProps {
   backendStatus: "healthy" | "offline" | "checking";
   onToggleHistory?: () => void;
   showHistory?: boolean;
+  onOpenAdmin?: () => void;
 }
 
-export default function Navbar({ backendStatus, onToggleHistory, showHistory }: NavbarProps) {
+export default function Navbar({ backendStatus, onToggleHistory, showHistory, onOpenAdmin }: NavbarProps) {
   const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -122,6 +123,16 @@ export default function Navbar({ backendStatus, onToggleHistory, showHistory }: 
                     />
                   </div>
                 </div>
+
+                {/* Admin dashboard entry point */}
+                {profile.role === "admin" && onOpenAdmin && (
+                  <button
+                    onClick={() => { setOpen(false); onOpenAdmin(); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 transition-colors border-b border-border"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Admin Dashboard
+                  </button>
+                )}
 
                 {/* Sign out */}
                 <button

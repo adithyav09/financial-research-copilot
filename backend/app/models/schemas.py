@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
@@ -90,6 +90,22 @@ class AccessRequestPayload(BaseModel):
 class AdminApprovePayload(BaseModel):
     action: str
     token_budget: Optional[int] = None
+
+
+class AdminUserListResponse(BaseModel):
+    users: List[UserProfileResponse]
+
+
+class GrantTokensPayload(BaseModel):
+    token_budget: int = Field(..., ge=0)
+
+
+class UsageSummaryResponse(BaseModel):
+    total_users: int
+    total_tokens_consumed: int
+    total_token_budget: int
+    by_role: Dict[str, int]
+    max_token_budget_grant: int
 
 
 class MarketDataResponse(BaseModel):
