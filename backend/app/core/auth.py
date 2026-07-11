@@ -18,12 +18,21 @@ bearer_scheme = HTTPBearer(auto_error=True)
 
 
 class AuthenticatedUser:
-    """Represents a verified Supabase user with their profile role."""
+    """Represents a verified Supabase user with their profile role and token usage."""
 
-    def __init__(self, user_id: str, email: str, role: str) -> None:
+    def __init__(
+        self,
+        user_id: str,
+        email: str,
+        role: str,
+        token_budget: int = 50000,
+        tokens_consumed: int = 0,
+    ) -> None:
         self.user_id = user_id
         self.email = email
         self.role = role
+        self.token_budget = token_budget
+        self.tokens_consumed = tokens_consumed
 
     @property
     def is_approved(self) -> bool:
@@ -32,6 +41,10 @@ class AuthenticatedUser:
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
+
+    @property
+    def is_over_budget(self) -> bool:
+        return self.tokens_consumed >= self.token_budget
 
 
 async def _verify_token_with_supabase(token: str) -> dict:
@@ -129,6 +142,8 @@ async def get_current_user(
         user_id=user_id,
         email=profile.get("email", ""),
         role=profile.get("role", "pending"),
+        token_budget=profile.get("token_budget", 50000),
+        tokens_consumed=profile.get("tokens_consumed", 0),
     )
 
 
