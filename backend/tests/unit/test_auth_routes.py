@@ -102,3 +102,33 @@ def test_non_admin_rejected_on_admin_routes():
     assert client.get("/api/auth/users").status_code == 403
     assert client.get("/api/auth/usage-summary").status_code == 403
     assert client.post("/api/auth/grant-tokens/u1", json={"token_budget": 1000}).status_code == 403
+    assert client.post("/api/auth/set-role/u1", json={"role": "admin"}).status_code == 403
+
+
+def test_set_role_updates_to_valid_role(monkeypatch):
+    app.dependency_overrides[require_admin] = _admin_user
+    mock = MagicMock()
+    mock.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+        {"id": "u1", "role": "admin"}
+    ]
+    monkeypatch.setattr("app.api.routes.auth.get_supabase_client", lambda: mock)
+
+    resp = client.post("/api/auth/set-role/u1", json={"role": "admin"})
+
+    assert resp.status_code == 200
+
+
+def test_set_role_rejects_invalid_role():
+    app.dependency_overrides[require_admin] = _admin_user
+
+    resp = client.post("/api/auth/set-role/u1", json={"role": "superuser"})
+
+    assert resp.status_code == 400
+
+
+def test_set_role_rejects_self_demotion():
+    app.dependency_overrides[require_admin] = _admin_user
+
+    resp = client.post("/api/auth/set-role/admin-1", json={"role": "approved"})
+
+    assert resp.status_code == 400

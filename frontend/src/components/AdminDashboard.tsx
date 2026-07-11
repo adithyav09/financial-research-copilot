@@ -46,6 +46,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingDrafts, setPendingDrafts] = useState<Record<string, string>>({});
   const [grantDrafts, setGrantDrafts] = useState<Record<string, string>>({});
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [busyRows, setBusyRows] = useState<Record<string, boolean>>({});
 
@@ -129,23 +130,39 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   };
 
   const handleGrant = (u: AdminUser) => {
+    const key = `grant:${u.user_id}`;
     const raw = grantDrafts[u.user_id] ?? String(u.token_budget);
     const tokenBudget = Number(raw);
     if (!Number.isFinite(tokenBudget) || tokenBudget < 0) {
-      setRowError(u.user_id, "Enter a valid token budget.");
+      setRowError(key, "Enter a valid token budget.");
       return;
     }
     if (tokenBudget > cap) {
-      setRowError(u.user_id, `Cannot exceed the max grant of ${cap.toLocaleString()}.`);
+      setRowError(key, `Cannot exceed the max grant of ${cap.toLocaleString()}.`);
       return;
     }
-    setRowError(u.user_id, null);
-    withBusy(u.user_id, async () => {
+    setRowError(key, null);
+    withBusy(key, async () => {
       try {
         await api.adminGrantTokens(u.user_id, tokenBudget);
         await loadAll();
       } catch (err: unknown) {
-        setRowError(u.user_id, err instanceof ApiError ? err.message : "Grant failed.");
+        setRowError(key, err instanceof ApiError ? err.message : "Grant failed.");
+      }
+    });
+  };
+
+  const handleSetRole = (u: AdminUser) => {
+    const key = `role:${u.user_id}`;
+    const role = roleDrafts[u.user_id] ?? u.role;
+    if (role === u.role) return;
+    setRowError(key, null);
+    withBusy(key, async () => {
+      try {
+        await api.adminSetRole(u.user_id, role);
+        await loadAll();
+      } catch (err: unknown) {
+        setRowError(key, err instanceof ApiError ? err.message : "Role change failed.");
       }
     });
   };
@@ -270,7 +287,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           <div className="divide-y divide-border">
             {users.map(u => (
               <div key={u.user_id} className="px-4 py-3 space-y-2">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex items-center gap-2">
                     <p className="text-sm text-white truncate">{u.email}</p>
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase border ${roleBadgeColor(u.role)}`}>
@@ -278,6 +295,24 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     </span>
                   </div>
                   <TokenBar consumed={u.tokens_consumed} budget={u.token_budget} />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <select
+                      value={roleDrafts[u.user_id] ?? u.role}
+                      onChange={e => setRoleDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
+                      className="px-2 py-1 text-xs rounded-md bg-surface border border-border text-gray-200 capitalize"
+                    >
+                      {["pending", "approved", "admin", "denied"].map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleSetRole(u)}
+                      disabled={busyRows[`role:${u.user_id}`] || (roleDrafts[u.user_id] ?? u.role) === u.role}
+                      className="px-2.5 py-1 rounded-md bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-medium transition-all disabled:opacity-50"
+                    >
+                      Set Role
+                    </button>
+                  </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <input
                       type="number"
@@ -289,14 +324,19 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     />
                     <button
                       onClick={() => handleGrant(u)}
-                      disabled={busyRows[u.user_id]}
+                      disabled={busyRows[`grant:${u.user_id}`]}
                       className="px-2.5 py-1 rounded-md bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent text-xs font-medium transition-all disabled:opacity-50"
                     >
                       Save
                     </button>
                   </div>
                 </div>
-                {rowErrors[u.user_id] && <p className="text-[11px] text-red-400">{rowErrors[u.user_id]}</p>}
+                {rowErrors[`role:${u.user_id}`] && (
+                  <p className="text-[11px] text-red-400">{rowErrors[`role:${u.user_id}`]}</p>
+                )}
+                {rowErrors[`grant:${u.user_id}`] && (
+                  <p className="text-[11px] text-red-400">{rowErrors[`grant:${u.user_id}`]}</p>
+                )}
               </div>
             ))}
           </div>

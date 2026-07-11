@@ -119,5 +119,11 @@ export const api = {
       body: JSON.stringify({ token_budget: tokenBudget }),
     }),
 
+  adminSetRole: (userId: string, role: string) =>
+    request<{ message: string }>(`/api/auth/set-role/${userId}`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+
   adminUsageSummary: () => request<UsageSummary>("/api/auth/usage-summary"),
 };

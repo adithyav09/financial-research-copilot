@@ -16,11 +16,14 @@ from app.models.schemas import (
     AdminApprovePayload,
     AdminUserListResponse,
     GrantTokensPayload,
+    SetRolePayload,
     UsageSummaryResponse,
     UserProfileResponse,
 )
 
 router = APIRouter()
+
+VALID_ROLES = {"pending", "approved", "admin", "denied"}
 
 
 def _validate_token_budget(token_budget: int) -> None:
@@ -177,6 +180,28 @@ async def grant_tokens(user_id: str, payload: GrantTokensPayload) -> dict:
     if not result.data:
         raise HTTPException(status_code=404, detail="User not found.")
     return {"message": f"token_budget for {user_id} set to {payload.token_budget}."}
+
+
+@router.post("/auth/set-role/{user_id}")
+async def set_role(
+    user_id: str,
+    payload: SetRolePayload,
+    admin: AuthenticatedUser = Depends(require_admin),
+) -> dict:
+    """
+    Admin: change a user's role directly (pending/approved/admin/denied),
+    separate from the initial approve/deny flow.
+    """
+    if payload.role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"role must be one of {sorted(VALID_ROLES)}.")
+    if user_id == admin.user_id and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="Cannot change your own role.")
+
+    supabase = get_supabase_client()
+    result = supabase.table("profiles").update({"role": payload.role}).eq("id", user_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return {"message": f"role for {user_id} set to {payload.role}."}
 
 
 @router.get("/auth/usage-summary", response_model=UsageSummaryResponse, dependencies=[Depends(require_admin)])

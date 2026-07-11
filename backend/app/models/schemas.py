@@ -100,6 +100,10 @@ class GrantTokensPayload(BaseModel):
     token_budget: int = Field(..., ge=0)
 
 
+class SetRolePayload(BaseModel):
+    role: str
+
+
 class UsageSummaryResponse(BaseModel):
     total_users: int
     total_tokens_consumed: int
