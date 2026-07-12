@@ -35,16 +35,21 @@ def test_list_users_requires_admin(monkeypatch):
             "email": "a@b.com",
             "role": "approved",
             "token_budget": 50000,
-            "tokens_consumed": 100,
             "created_at": "2026-01-01",
         }
     ]
+    # Consumption now comes from the token_usage ledger via get_all_token_totals.
+    mock.rpc.return_value.execute.return_value.data = [
+        {"user_id": "u1", "tokens_consumed": 100}
+    ]
     monkeypatch.setattr("app.api.routes.auth.get_supabase_client", lambda: mock)
+    monkeypatch.setattr("app.core.auth.get_supabase_client", lambda: mock)
 
     resp = client.get("/api/auth/users")
 
     assert resp.status_code == 200
     assert resp.json()["users"][0]["email"] == "a@b.com"
+    assert resp.json()["users"][0]["tokens_consumed"] == 100
 
 
 def test_grant_tokens_rejects_over_cap(monkeypatch):
@@ -82,11 +87,18 @@ def test_approve_rejects_token_budget_over_cap(monkeypatch):
 def test_usage_summary_aggregates(monkeypatch):
     app.dependency_overrides[require_admin] = _admin_user
     mock = MagicMock()
+    # Budgets/roles come from profiles; consumption comes from the token_usage
+    # ledger via get_all_token_totals (mocked here on rpc).
     mock.table.return_value.select.return_value.execute.return_value.data = [
-        {"role": "approved", "token_budget": 50000, "tokens_consumed": 1000},
-        {"role": "admin", "token_budget": 100000, "tokens_consumed": 500},
+        {"id": "u1", "role": "approved", "token_budget": 50000},
+        {"id": "u2", "role": "admin", "token_budget": 100000},
+    ]
+    mock.rpc.return_value.execute.return_value.data = [
+        {"user_id": "u1", "tokens_consumed": 1000},
+        {"user_id": "u2", "tokens_consumed": 500},
     ]
     monkeypatch.setattr("app.api.routes.auth.get_supabase_client", lambda: mock)
+    monkeypatch.setattr("app.core.auth.get_supabase_client", lambda: mock)
 
     resp = client.get("/api/auth/usage-summary")
 

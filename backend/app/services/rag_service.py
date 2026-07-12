@@ -489,7 +489,12 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
                     url=sec_url,
                 ))
 
-        return {"answer": answer, "citations": citations, "tokens_used": tokens_used}
+        return {
+            "answer": answer,
+            "citations": citations,
+            "tokens_used": tokens_used,
+            "model": settings.llm_model,
+        }
         
     except Exception as e:
         raise Exception(f"Failed to query filing for {ticker}: {str(e)}")

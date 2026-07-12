@@ -123,6 +123,39 @@ def _load_profile(user_id: str) -> dict:
     return result.data
 
 
+def get_tokens_consumed(user_id: str) -> int:
+    """
+    Sum the user's consumption from the token_usage ledger (the source of truth).
+
+    profiles.token_budget is the cap; token_usage rows are the debits. Returns 0
+    on any failure so a transient error can't spuriously lock a user out — the
+    per-query budget check fails open, and the ledger is authoritative once
+    reachable again.
+    """
+    try:
+        supabase = get_supabase_client()
+        result = supabase.rpc(
+            "get_tokens_consumed", {"p_user_id": str(user_id)}
+        ).execute()
+        return int(result.data or 0)
+    except Exception:
+        return 0
+
+
+def get_all_token_totals() -> dict:
+    """
+    Return {user_id: tokens_consumed} for every user with ledger rows, in one
+    round trip. Used by the admin user list and usage summary so they don't
+    issue a per-user sum. Users with no rows are simply absent (treat as 0).
+    """
+    try:
+        supabase = get_supabase_client()
+        result = supabase.rpc("get_all_token_totals").execute()
+        return {row["user_id"]: int(row["tokens_consumed"] or 0) for row in (result.data or [])}
+    except Exception:
+        return {}
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> AuthenticatedUser:
@@ -143,7 +176,7 @@ async def get_current_user(
         email=profile.get("email", ""),
         role=profile.get("role", "pending"),
         token_budget=profile.get("token_budget", 50000),
-        tokens_consumed=profile.get("tokens_consumed", 0),
+        tokens_consumed=get_tokens_consumed(user_id),
     )
 
 

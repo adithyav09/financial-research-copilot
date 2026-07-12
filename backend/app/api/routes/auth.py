@@ -8,7 +8,13 @@ from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.core.auth import AuthenticatedUser, get_current_user, require_admin
+from app.core.auth import (
+    AuthenticatedUser,
+    get_all_token_totals,
+    get_current_user,
+    get_tokens_consumed,
+    require_admin,
+)
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.models.schemas import (
@@ -57,7 +63,7 @@ async def get_me(user: AuthenticatedUser = Depends(get_current_user)) -> UserPro
         email=p["email"],
         role=p["role"],
         token_budget=p.get("token_budget", 50000),
-        tokens_consumed=p.get("tokens_consumed", 0),
+        tokens_consumed=get_tokens_consumed(user.user_id),
         created_at=p.get("created_at"),
     )
 
@@ -150,13 +156,14 @@ async def list_users() -> AdminUserListResponse:
         .order("created_at", desc=True)
         .execute()
     )
+    totals = get_all_token_totals()
     users = [
         UserProfileResponse(
             user_id=p["id"],
             email=p.get("email"),
             role=p["role"],
             token_budget=p.get("token_budget", 50000),
-            tokens_consumed=p.get("tokens_consumed", 0),
+            tokens_consumed=totals.get(p["id"], 0),
             created_at=p.get("created_at"),
         )
         for p in (result.data or [])
@@ -211,8 +218,9 @@ async def usage_summary() -> UsageSummaryResponse:
     (not the OpenAI usage API — profiles.tokens_consumed is what we bill against).
     """
     supabase = get_supabase_client()
-    result = supabase.table("profiles").select("role, token_budget, tokens_consumed").execute()
+    result = supabase.table("profiles").select("id, role, token_budget").execute()
     rows = result.data or []
+    totals = get_all_token_totals()
 
     by_role: Dict[str, int] = {}
     total_consumed = 0
@@ -220,7 +228,7 @@ async def usage_summary() -> UsageSummaryResponse:
     for r in rows:
         role = r.get("role", "unknown")
         by_role[role] = by_role.get(role, 0) + 1
-        total_consumed += r.get("tokens_consumed", 0) or 0
+        total_consumed += totals.get(r["id"], 0)
         total_budget += r.get("token_budget", 0) or 0
 
     return UsageSummaryResponse(
