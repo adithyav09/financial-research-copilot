@@ -87,9 +87,7 @@ export default function App() {
   const submitQuery = async (question: string, t: string, retriedAfterIngest = false) => {
     setIsQuerying(true);
     try {
-      // Depth is a UI concept until Phase 2 lands the backend `depth` param;
-      // until then every query goes out under the neutral "value" mode.
-      const res = await api.query({ ticker: t, question, mode: "value" as AnalysisMode, session_id: sessionId });
+      const res = await api.query({ ticker: t, question, depth, session_id: sessionId });
       setMessages(prev => [...prev, assistantMessage(res, question)]);
       setIngestPhase("ready");
       refreshProfile().catch(() => {});

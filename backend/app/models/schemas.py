@@ -32,10 +32,23 @@ class IngestResponse(BaseModel):
     chunks_processed: int = 0
 
 
+class Depth(str, Enum):
+    """
+    Explanation depth for answers — the Thesis redesign's replacement for the
+    7 analysis-mode personas. Depth changes framing/register only, never the
+    underlying data (same hard product rule that governed modes).
+    """
+    SIMPLE = "simple"
+    ANALYST = "analyst"
+
+
 class QueryRequest(BaseModel):
     ticker: str
     question: str
+    # Deprecated: kept so older clients sending `mode` still validate.
+    # The query path ignores it; `depth` drives the prompt now.
     mode: AnalysisMode = AnalysisMode.VALUE
+    depth: Depth = Depth.ANALYST
     session_id: Optional[str] = None
 
 

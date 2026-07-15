@@ -44,7 +44,10 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
                 )
 
         # Query the filing
-        result = await query_filing(ticker, request.question, request.mode, user_id=user.user_id)
+        result = await query_filing(
+            ticker, request.question, request.mode,
+            user_id=user.user_id, depth=request.depth,
+        )
         
         # Calculate latency
         latency_ms = int((time.time() - start_time) * 1000)
@@ -56,7 +59,9 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
             log_data = {
                 "ticker": ticker,
                 "question": request.question,
-                "mode": request.mode.value,
+                # mode is a free-text column; depth values land here so history
+                # keeps working without a schema migration.
+                "mode": request.depth.value,
                 "answer_length": len(result["answer"]),
                 "citations_count": len(result["citations"]),
                 "citations": [c.model_dump() for c in result["citations"]],

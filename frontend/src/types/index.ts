@@ -29,7 +29,9 @@ export interface IngestResponse {
 export interface QueryRequest {
   ticker: string;
   question: string;
-  mode: AnalysisMode;
+  /** Deprecated — backend ignores it; depth drives the prompt now. */
+  mode?: AnalysisMode;
+  depth?: Depth;
   session_id?: string;
 }
 

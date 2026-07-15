@@ -12,7 +12,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 
-from app.models.schemas import AnalysisMode, Citation
+from app.models.schemas import AnalysisMode, Citation, Depth
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.services.market_service import fetch_market_data
@@ -75,6 +75,30 @@ EDUCATIONAL_INSTRUCTION = (
 _PREFIX = f"{DISCLAIMER}\n\n{NO_ADVICE_INSTRUCTION}\n\n"
 
 
+# Depth replaces the 7 analysis-mode personas (Thesis redesign). Both depths
+# must present the SAME data — depth changes register and explanation level
+# only. This mirrors the old mode rule: framing may differ, data may not.
+DEPTH_SYSTEM_PROMPTS = {
+    Depth.ANALYST: _PREFIX + (
+        "You are a financial research analyst summarizing SEC filings and market data "
+        "for a professionally fluent reader. Present the key figures relevant to the "
+        "question — revenue, margins, cash flow, debt, segment detail — with exact "
+        "numbers and their periods. Assume the reader knows standard financial "
+        "terminology; do not define common terms. "
+        "Do NOT render a buy/sell opinion — present the data and let the user decide. "
+        "Highlight risk factors from Item 1A when they bear on the question."
+    ),
+    Depth.SIMPLE: _PREFIX + (
+        "You are a financial research assistant writing for someone who is new to "
+        "reading SEC filings. Use the same complete, accurate figures an analyst would "
+        "— never omit or round away information to simplify. "
+        + EDUCATIONAL_INSTRUCTION
+    ),
+}
+
+
+# Deprecated: superseded by DEPTH_SYSTEM_PROMPTS. Kept only so any code still
+# importing it (or older data referencing mode names) doesn't break.
 MODE_SYSTEM_PROMPTS = {
     AnalysisMode.VALUE: _PREFIX + (
         "You are a value-oriented financial analyst. When answering questions about valuation, "
@@ -238,15 +262,25 @@ async def check_ticker_ingested(ticker: str) -> bool:
         return False
 
 
-async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: str | None = None) -> dict:
+async def query_filing(
+    ticker: str,
+    question: str,
+    mode: AnalysisMode = AnalysisMode.VALUE,
+    user_id: str | None = None,
+    depth: Depth = Depth.ANALYST,
+) -> dict:
     """
-    Query the vector store and generate a mode-aware answer using LCEL chain.
-    
+    Query the vector store and generate a depth-aware answer using LCEL chain.
+
     Args:
         ticker: Company ticker to scope the search
         question: User's question
-        mode: Analysis mode (value or growth)
-        
+        mode: Deprecated — accepted for backward compatibility, no longer
+            used for prompt selection (depth replaced the 7 personas)
+        user_id: Scopes retrieval to this user's ingested filings
+        depth: Explanation depth (simple defines jargon inline; analyst
+            assumes financial fluency). Framing only — data never differs.
+
     Returns:
         dict with answer and citations
     """
@@ -340,18 +374,19 @@ async def query_filing(ticker: str, question: str, mode: AnalysisMode, user_id: 
         live_context = _format_market_context(ticker, market_data, xbrl_data)
 
         # Step 6: Build prompt (is_live already determined at top of function)
+        # Simple depth already folds in EDUCATIONAL_INSTRUCTION; analyst must
+        # not get it (its whole point is skipping the inline definitions).
         system_prompt = (
-            MODE_SYSTEM_PROMPTS[mode]
+            DEPTH_SYSTEM_PROMPTS[depth]
             + "\n\n" + CONTEXT_ONLY_INSTRUCTION
             + "\n\n" + CITATION_INSTRUCTION
-            + "\n\n" + EDUCATIONAL_INSTRUCTION
         )
 
         if is_live:
             # For current/news questions: answer entirely from live data, skip filing retrieval
             live_prompt = ChatPromptTemplate.from_messages([
                 ("system",
-                    MODE_SYSTEM_PROMPTS[mode]
+                    DEPTH_SYSTEM_PROMPTS[depth]
                     + "\n\nYou are answering a question about CURRENT or RECENT information. "
                     "Use ONLY the Live Market & Financial Data block below. "
                     "Do NOT reference old filings or fabricate anything not in the data block. "
