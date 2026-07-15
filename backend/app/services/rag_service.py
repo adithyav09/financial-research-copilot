@@ -72,15 +72,15 @@ STRUCTURED_OUTPUT_INSTRUCTION = (
     "these fields:\n"
     '  "takeaway": one or two sentences with the single most important answer to the question, '
     "including the key figures.\n"
-    '  "metrics": array of at most 3 objects, each {"label", "value", "delta", "delta_direction", '
-    '"citation"} — the headline numbers behind the takeaway. "value" is the formatted figure '
+    '  "metrics": array of at most 3 objects, each {{"label", "value", "delta", "delta_direction", '
+    '"citation"}} — the headline numbers behind the takeaway. "value" is the formatted figure '
     '(e.g. "$109.2B"), "delta" a short change like "+11.9% YoY" or null, "delta_direction" one of '
     '"up"/"down"/"flat" or null, "citation" the 1-based [N] source number the figure came from, '
     "or null. Only include metrics whose values appear verbatim in the provided context.\n"
     '  "narrative": the full answer as markdown, following all the instructions above '
     "(inline [N] citations, plain-English explanations if asked for them).\n"
     '  "chart": null, unless the question is about a multi-year trend — then '
-    '{"title", "metric_keys", "reason"} where "metric_keys" is 1-2 of: '
+    '{{"title", "metric_keys", "reason"}} where "metric_keys" is 1-2 of: '
     + ", ".join(sorted(XBRL_CHART_KEYS)) + ". "
     '"reason" is a short clause like "your question covers a multi-year trend".\n'
     '  "follow_ups": array of 2-3 short follow-up questions a curious reader would ask next.\n'
