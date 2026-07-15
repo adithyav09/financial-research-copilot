@@ -54,9 +54,17 @@ At query time `query_filing` pulls all `ready` jobs for the ticker, picks the mo
 - `xbrl_service.py` — SEC EDGAR XBRL company-facts API: multi-year historical financial *series* (revenue, net income, cash flow, etc.) used for trend context and the on-demand Visualize chart builder (`frontend/src/components/charts/VisualizeBuilder.tsx` + `MetricChart.tsx`).
 - `rag_service.py` — orchestrates all of the above into the LLM prompt. Market + XBRL fetches are **best-effort** (wrapped in try/except, never fail the query).
 
-### Analysis modes (personas)
+### Depth control (replaced the 7 analysis-mode personas)
 
-`AnalysisMode` enum (`models/schemas.py`) has 7 values: value, growth, income, quality, risk_averse, esg, activist. Each maps to a system prompt in `MODE_SYSTEM_PROMPTS` (`rag_service.py`). **Modes change only narrative framing, never the underlying data** (a hard product rule — see below). Every mode prompt is prefixed with `DISCLAIMER` + `NO_ADVICE_INSTRUCTION`.
+The Thesis redesign replaced the 7 `AnalysisMode` personas with a `Depth` enum (`models/schemas.py`): `simple` (defines jargon inline via `EDUCATIONAL_INSTRUCTION`) and `analyst` (professional register, no inline definitions). Prompts live in `DEPTH_SYSTEM_PROMPTS` (`rag_service.py`). **Depth changes only narrative framing/register, never the underlying data** (the same hard product rule that governed modes — see below). Every depth prompt is prefixed with `DISCLAIMER` + `NO_ADVICE_INSTRUCTION`. `AnalysisMode` and `mode` request fields remain accepted for backward compatibility but no longer select prompts; the depth value is logged into the free-text `query_logs.mode` column.
+
+### Structured answers
+
+`query_filing` asks the LLM for a JSON contract (OpenAI JSON mode with plain-call fallback): takeaway, ≤3 metric cards, narrative markdown with `[N]` markers, optional chart spec (keys validated against `XBRL_CHART_KEYS`), and follow-ups. `_parse_structured_answer` hardens the reply and returns `None` on any failure, in which case the raw text renders as a plain markdown answer — never let structure break answering. Chart data never travels in the answer; the frontend renders requested series from its own `/xbrl` data (`StructuredAnswerView.tsx`).
+
+### In-app filing viewer
+
+Filing citations carry `chunk_index` + `filing_type`; `GET /api/filing/{ticker}/passage` (`routes/filing.py`) returns the cited chunk ± neighbors from `document_chunks`. Clicking an inline citation badge or filing source chip opens `FilingViewer.tsx` beside the chat. Live-data citations (news/quotes) keep external links.
 
 ### Auth (Supabase, role-gated)
 
