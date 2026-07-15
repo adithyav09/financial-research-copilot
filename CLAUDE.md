@@ -73,7 +73,11 @@ Filing citations carry `chunk_index` + `filing_type`; `GET /api/filing/{ticker}/
 - `require_approved` — gates `/query` and `/ingest` (403 if pending)
 - `require_admin` — admin-only endpoints
 
-Approved users have a `token_budget` / `tokens_consumed` in `profiles`. Every query logs to `query_logs` and atomically increments consumption via the `increment_tokens_consumed` Postgres RPC (`supabase/migrations/increment_tokens_rpc.sql`).
+Approved users have a `token_budget` in `profiles` and a cap of `settings.max_token_budget_grant` on any grant an admin can make. **`token_usage` is the source of truth for consumption** (`supabase/migrations/token_usage_ledger.sql`) — every query inserts one ledger row (`user_id`, `tokens_used`, `model`); `get_tokens_consumed`/`get_all_token_totals` Postgres RPCs sum it per-user or for everyone at once. `profiles.tokens_consumed` is legacy and no longer written or read. `require_approved` in `query.py` rejects a query with 403 when `AuthenticatedUser.is_over_budget` (`tokens_consumed >= token_budget`) — checked before any LLM call.
+
+### Admin dashboard
+
+`AdminDashboard.tsx` (opened via the navbar profile menu, admin role only) lists all users with role + usage, handles the pending-access-request approve/deny flow, lets an admin grant a token budget or change a role directly (`/api/auth/set-role/{user_id}`), and shows an aggregate usage summary. All admin routes in `routes/auth.py` are gated by `require_admin` and enforce `max_token_budget_grant` server-side (`_validate_token_budget`) — the cap can't be bypassed by any client.
 
 ### Frontend flow
 
