@@ -40,6 +40,7 @@ export default function App() {
     content: res.answer,
     citations: res.citations,
     mode: res.mode,
+    structured: res.structured ?? null,
     timestamp: new Date(),
     question,
   });

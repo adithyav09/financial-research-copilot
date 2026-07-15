@@ -59,12 +59,43 @@ class Citation(BaseModel):
     url: Optional[str] = None
 
 
+class MetricCard(BaseModel):
+    """One headline figure pulled out of the answer (design 1b metric cards)."""
+    label: str
+    value: str
+    delta: Optional[str] = None            # e.g. "+11.9% YoY"
+    delta_direction: Optional[str] = None  # "up" | "down" | "flat" — drives color only
+    citation: Optional[int] = None         # 1-based index into the citations list
+
+
+class ChartSpec(BaseModel):
+    """
+    Auto-chart request from the LLM. metric_keys must come from the XBRL
+    series the backend already serves (validated server-side); the frontend
+    renders from its own /xbrl data — no chart data travels in the answer.
+    """
+    title: str
+    metric_keys: list[str]
+    reason: Optional[str] = None  # shown as "Shown because …"
+
+
+class StructuredAnswer(BaseModel):
+    takeaway: str
+    metrics: list[MetricCard] = []
+    narrative: str
+    chart: Optional[ChartSpec] = None
+    follow_ups: list[str] = []
+
+
 class QueryResponse(BaseModel):
     answer: str
     mode: AnalysisMode
     ticker: str
     citations: list[Citation] = []
     tokens_used: int = 0
+    # Present when the LLM produced valid structured output; the frontend
+    # falls back to rendering `answer` as markdown when it's null.
+    structured: Optional[StructuredAnswer] = None
 
 
 class HealthResponse(BaseModel):

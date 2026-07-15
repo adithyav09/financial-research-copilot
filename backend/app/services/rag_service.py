@@ -12,7 +12,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 
-from app.models.schemas import AnalysisMode, Citation, Depth
+import json
+
+from app.models.schemas import AnalysisMode, Citation, Depth, StructuredAnswer
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.services.market_service import fetch_market_data
@@ -55,6 +57,34 @@ CONTEXT_ONLY_INSTRUCTION = (
     "4. 10-K filing chunks — use for qualitative detail, risk factors, strategy, and management commentary. "
     "   Cite these with [N] inline markers.\n"
     "Never fabricate numbers or use outside knowledge beyond what is provided in the data blocks."
+)
+
+# XBRL series the frontend can chart from its own /xbrl data. The LLM may only
+# request these keys; anything else is dropped during validation.
+XBRL_CHART_KEYS = {
+    "revenue", "net_income", "operating_cash_flow", "free_cash_flow",
+    "gross_profit", "operating_income", "total_debt", "shareholders_equity",
+    "eps_diluted",
+}
+
+STRUCTURED_OUTPUT_INSTRUCTION = (
+    "Respond with a single JSON object (no code fences, no text outside it) with exactly "
+    "these fields:\n"
+    '  "takeaway": one or two sentences with the single most important answer to the question, '
+    "including the key figures.\n"
+    '  "metrics": array of at most 3 objects, each {"label", "value", "delta", "delta_direction", '
+    '"citation"} — the headline numbers behind the takeaway. "value" is the formatted figure '
+    '(e.g. "$109.2B"), "delta" a short change like "+11.9% YoY" or null, "delta_direction" one of '
+    '"up"/"down"/"flat" or null, "citation" the 1-based [N] source number the figure came from, '
+    "or null. Only include metrics whose values appear verbatim in the provided context.\n"
+    '  "narrative": the full answer as markdown, following all the instructions above '
+    "(inline [N] citations, plain-English explanations if asked for them).\n"
+    '  "chart": null, unless the question is about a multi-year trend — then '
+    '{"title", "metric_keys", "reason"} where "metric_keys" is 1-2 of: '
+    + ", ".join(sorted(XBRL_CHART_KEYS)) + ". "
+    '"reason" is a short clause like "your question covers a multi-year trend".\n'
+    '  "follow_ups": array of 2-3 short follow-up questions a curious reader would ask next.\n'
+    "Never invent numbers for metrics or the takeaway — every figure must come from the context."
 )
 
 CITATION_INSTRUCTION = (
@@ -142,6 +172,38 @@ MODE_SYSTEM_PROMPTS = {
         "GAAP earnings and cash flow."
     ),
 }
+
+
+def _parse_structured_answer(raw: str) -> StructuredAnswer | None:
+    """
+    Parse the LLM's JSON reply into a StructuredAnswer, or None if unusable —
+    the caller then falls back to treating the raw text as a plain answer.
+    Hardening steps, in order:
+      1. strip ``` fences the model sometimes adds despite instructions
+      2. json.loads + pydantic validation
+      3. reject empty takeaway/narrative (a husk isn't worth rendering)
+      4. clamp metrics/follow_ups to design limits; drop chart keys we can't
+         serve from XBRL, and the whole chart if none survive
+    """
+    try:
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text
+            text = text.rsplit("```", 1)[0]
+        structured = StructuredAnswer.model_validate(json.loads(text))
+        if not structured.takeaway.strip() or not structured.narrative.strip():
+            return None
+        structured.metrics = structured.metrics[:3]
+        structured.follow_ups = structured.follow_ups[:3]
+        if structured.chart:
+            structured.chart.metric_keys = [
+                k for k in structured.chart.metric_keys if k in XBRL_CHART_KEYS
+            ][:2]
+            if not structured.chart.metric_keys:
+                structured.chart = None
+        return structured
+    except Exception:
+        return None
 
 
 def format_docs(docs):
@@ -380,6 +442,7 @@ async def query_filing(
             DEPTH_SYSTEM_PROMPTS[depth]
             + "\n\n" + CONTEXT_ONLY_INSTRUCTION
             + "\n\n" + CITATION_INSTRUCTION
+            + "\n\n" + STRUCTURED_OUTPUT_INSTRUCTION
         )
 
         if is_live:
@@ -392,6 +455,11 @@ async def query_filing(
                     "Do NOT reference old filings or fabricate anything not in the data block. "
                     "For news questions, list headlines with their dates and publishers. "
                     + "\n\n" + NO_ADVICE_INSTRUCTION
+                    + "\n\n" + STRUCTURED_OUTPUT_INSTRUCTION
+                    # Live answers have no numbered filing passages — the [N]
+                    # citation system doesn't apply on this path.
+                    + '\n\nFor this question there are no numbered sources: set every "citation" '
+                    "to null and do not use [N] markers in the narrative."
                 ),
                 ("human", "{live_context}\n\nQuestion: {question}")
             ])
@@ -434,9 +502,25 @@ async def query_filing(
                 "live_context": live_context,
             })
 
-        # Step 8: Call LLM directly to capture usage_metadata
-        llm_response = await llm.ainvoke(prompt_value)
-        answer = llm_response.content
+        # Step 8: Call LLM directly to capture usage_metadata.
+        # JSON mode makes the structured reply near-deterministic, but some
+        # models reject the response_format kwarg — fall back to a plain call;
+        # the prompt still asks for JSON and the parser tolerates failure.
+        try:
+            llm_response = await llm.bind(
+                response_format={"type": "json_object"}
+            ).ainvoke(prompt_value)
+        except Exception:
+            llm_response = await llm.ainvoke(prompt_value)
+        raw_answer = llm_response.content
+
+        structured = _parse_structured_answer(raw_answer)
+        if structured:
+            # query_logs/history persist only `answer` text — compose takeaway +
+            # narrative so restored sessions read well without the structured payload.
+            answer = f"**{structured.takeaway}**\n\n{structured.narrative}"
+        else:
+            answer = raw_answer
 
         # Extract actual token counts from response metadata
         usage = getattr(llm_response, "usage_metadata", None) or {}
@@ -524,7 +608,12 @@ async def query_filing(
                     url=sec_url,
                 ))
 
-        return {"answer": answer, "citations": citations, "tokens_used": tokens_used}
+        return {
+            "answer": answer,
+            "citations": citations,
+            "tokens_used": tokens_used,
+            "structured": structured,
+        }
         
     except Exception as e:
         raise Exception(f"Failed to query filing for {ticker}: {str(e)}")

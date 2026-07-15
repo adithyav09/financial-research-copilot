@@ -42,12 +42,35 @@ export interface Citation {
   url?: string;
 }
 
+export interface MetricCardData {
+  label: string;
+  value: string;
+  delta?: string | null;
+  delta_direction?: "up" | "down" | "flat" | null;
+  citation?: number | null;
+}
+
+export interface ChartSpec {
+  title: string;
+  metric_keys: string[];
+  reason?: string | null;
+}
+
+export interface StructuredAnswer {
+  takeaway: string;
+  metrics: MetricCardData[];
+  narrative: string;
+  chart?: ChartSpec | null;
+  follow_ups: string[];
+}
+
 export interface QueryResponse {
   answer: string;
   mode: AnalysisMode;
   ticker: string;
   citations: Citation[];
   tokens_used: number;
+  structured?: StructuredAnswer | null;
 }
 
 export interface HealthResponse {
@@ -139,6 +162,7 @@ export interface ChatMessage {
   content: string;
   citations?: Citation[];
   mode?: AnalysisMode;
+  structured?: StructuredAnswer | null;
   timestamp: Date;
   question?: string;
 }
