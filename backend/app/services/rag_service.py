@@ -618,6 +618,7 @@ async def query_filing(
             "citations": citations,
             "tokens_used": tokens_used,
             "structured": structured,
+            "model": settings.llm_model,
         }
         
     except Exception as e:

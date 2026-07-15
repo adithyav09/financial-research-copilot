@@ -1,8 +1,10 @@
 import type {
+  AdminUserListResponse,
   FilingPassageResponse,
   HealthResponse,
   IngestRequest,
   IngestResponse,
+  PendingAccessRequest,
   QueryRequest,
   QueryResponse,
   MarketData,
@@ -10,6 +12,7 @@ import type {
   SuggestionsRequest,
   SuggestionsResponse,
   TickerSearchResponse,
+  UsageSummary,
   XBRLFinancials,
 } from "../types";
 import { supabase } from "../lib/supabase";
@@ -104,4 +107,29 @@ export const api = {
     request<FilingPassageResponse>(
       `/api/filing/${ticker}/passage?chunk_index=${chunkIndex}&filing_type=${encodeURIComponent(filingType)}`
     ),
+
+  adminListUsers: () => request<AdminUserListResponse>("/api/auth/users"),
+
+  adminPendingRequests: () =>
+    request<{ requests: PendingAccessRequest[] }>("/api/auth/pending-requests"),
+
+  adminApprove: (userId: string, payload: { action: "approved" | "denied"; token_budget?: number }) =>
+    request<{ message: string }>(`/api/auth/approve/${userId}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  adminGrantTokens: (userId: string, tokenBudget: number) =>
+    request<{ message: string }>(`/api/auth/grant-tokens/${userId}`, {
+      method: "POST",
+      body: JSON.stringify({ token_budget: tokenBudget }),
+    }),
+
+  adminSetRole: (userId: string, role: string) =>
+    request<{ message: string }>(`/api/auth/set-role/${userId}`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+
+  adminUsageSummary: () => request<UsageSummary>("/api/auth/usage-summary"),
 };

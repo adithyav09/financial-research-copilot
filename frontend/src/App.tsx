@@ -9,6 +9,7 @@ import FirstRunNotice, { NOTICE_STORAGE_KEY } from "./components/FirstRunNotice"
 import HowAnswersPanel from "./components/HowAnswersPanel";
 import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
+import AdminDashboard from "./components/AdminDashboard";
 import { useAuth } from "./context/AuthContext";
 import { api, needsIngestion } from "./api/client";
 import type { AnalysisMode, ChatMessage, Depth, MarketData, QueryResponse, StatusResponse, XBRLFinancials } from "./types";
@@ -40,6 +41,7 @@ export default function App() {
   const [isQuerying, setIsQuerying] = useState(false);
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(true);
+  const [view, setView] = useState<"chat" | "admin">("chat");
   const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [showHowAnswers, setShowHowAnswers] = useState(false);
@@ -301,102 +303,107 @@ export default function App() {
         onToggleHistory={() => setShowHistory(h => !h)}
         showHistory={showHistory}
         onShowHowAnswersAreMade={() => setShowHowAnswers(true)}
+        onOpenAdmin={() => setView("admin")}
       />
-      <div className="flex flex-1 overflow-hidden">
-        {showHistory && (
-          <div className="w-[232px] shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
-            <ChatHistory
-              currentSessionId={sessionId}
-              currentTicker={ticker}
-              onNewChat={handleNewChat}
-              onSelectSession={(session) => {
-                setTicker(session.ticker);
-                setIngestPhase("idle");
-                setIngestMessage(null);
-                setMarketData(null);
-                setXbrlData(null);
-                setFilingStatus(null);
-                setStaleInfo(null);
-                stopPolling();
-                pendingQuestionRef.current = null;
-                loadTickerData(session.ticker);
-                // Restore Q&A pairs as chat messages, including their saved citations
-                const restored: ChatMessage[] = [];
-                for (const entry of session.entries) {
-                  restored.push({
-                    id: `h-user-${entry.id}`,
-                    role: "user",
-                    content: entry.question,
-                    timestamp: new Date(entry.created_at),
-                  });
-                  if (entry.answer) {
+      {view === "admin" ? (
+        <AdminDashboard onBack={() => setView("chat")} />
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {showHistory && (
+            <div className="w-[232px] shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
+              <ChatHistory
+                currentSessionId={sessionId}
+                currentTicker={ticker}
+                onNewChat={handleNewChat}
+                onSelectSession={(session) => {
+                  setTicker(session.ticker);
+                  setIngestPhase("idle");
+                  setIngestMessage(null);
+                  setMarketData(null);
+                  setXbrlData(null);
+                  setFilingStatus(null);
+                  setStaleInfo(null);
+                  stopPolling();
+                  pendingQuestionRef.current = null;
+                  loadTickerData(session.ticker);
+                  // Restore Q&A pairs as chat messages, including their saved citations
+                  const restored: ChatMessage[] = [];
+                  for (const entry of session.entries) {
                     restored.push({
-                      id: `h-asst-${entry.id}`,
-                      role: "assistant",
-                      content: entry.answer,
-                      citations: entry.citations ?? undefined,
-                      mode: entry.mode as AnalysisMode,
+                      id: `h-user-${entry.id}`,
+                      role: "user",
+                      content: entry.question,
                       timestamp: new Date(entry.created_at),
-                      question: entry.question,
                     });
+                    if (entry.answer) {
+                      restored.push({
+                        id: `h-asst-${entry.id}`,
+                        role: "assistant",
+                        content: entry.answer,
+                        citations: entry.citations ?? undefined,
+                        mode: entry.mode as AnalysisMode,
+                        timestamp: new Date(entry.created_at),
+                        question: entry.question,
+                      });
+                    }
                   }
-                }
-                setMessages(restored);
-                setSessionId(session.session_id);
-              }}
-            />
-          </div>
-        )}
-        <Sidebar
-          ticker={ticker}
-          ingestPhase={ingestPhase}
-          ingestMessage={ingestMessage}
-          marketData={marketData}
-          filingStatus={filingStatus}
-          staleInfo={staleInfo}
-          sessionStats={sessionStats}
-          onReIngest={() => {
-            setStaleInfo(null);
-            setIngestPhase("ingesting");
-            setIngestMessage(`Loading ${ticker}'s newest annual report…`);
-            pendingQuestionRef.current = null;
-            api.ingest({ ticker }).then(() => {
-              setIngestPhase("polling");
-              startPolling(ticker);
-            }).catch((err: unknown) => {
-              const msg = err instanceof Error ? err.message : "Unknown error";
-              setIngestPhase("error");
-              setIngestMessage(`Re-ingest failed: ${msg}`);
-            });
-          }}
-        />
-        <ChatPanel
-          messages={messages}
-          onSend={handleSend}
-          isLoading={isQuerying || ingestPhase === "ingesting" || ingestPhase === "polling" || ingestPhase === "checking"}
-          ticker={ticker}
-          companyName={companyName}
-          onTickerChange={handleTickerChange}
-          ingestPhase={ingestPhase}
-          depth={depth}
-          onDepthChange={setDepth}
-          xbrlData={xbrlData}
-          onOpenCitation={(current, filingCitations) => setViewer({ current, filingCitations })}
-          engine={engine}
-        />
-        {viewer && viewer.current.citation.chunk_index != null && (
-          <FilingViewer
+                  setMessages(restored);
+                  setSessionId(session.session_id);
+                }}
+              />
+            </div>
+          )}
+          <Sidebar
+            ticker={ticker}
+            ingestPhase={ingestPhase}
+            ingestMessage={ingestMessage}
+            marketData={marketData}
+            filingStatus={filingStatus}
+            staleInfo={staleInfo}
+            sessionStats={sessionStats}
+            onReIngest={() => {
+              setStaleInfo(null);
+              setIngestPhase("ingesting");
+              setIngestMessage(`Loading ${ticker}'s newest annual report…`);
+              pendingQuestionRef.current = null;
+              api.ingest({ ticker }).then(() => {
+                setIngestPhase("polling");
+                startPolling(ticker);
+              }).catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : "Unknown error";
+                setIngestPhase("error");
+                setIngestMessage(`Re-ingest failed: ${msg}`);
+              });
+            }}
+          />
+          <ChatPanel
+            messages={messages}
+            onSend={handleSend}
+            isLoading={isQuerying || ingestPhase === "ingesting" || ingestPhase === "polling" || ingestPhase === "checking"}
             ticker={ticker}
             companyName={companyName}
-            citation={viewer.current.citation}
-            citationNumber={viewer.current.number}
-            filingCitations={viewer.filingCitations}
-            onNavigate={(citation, number) => setViewer(v => v ? { ...v, current: { citation, number } } : v)}
-            onAskAboutPassage={handleSend}
-            onClose={() => setViewer(null)}
+            onTickerChange={handleTickerChange}
+            ingestPhase={ingestPhase}
+            depth={depth}
+            onDepthChange={setDepth}
+            xbrlData={xbrlData}
+            onOpenCitation={(current, filingCitations) => setViewer({ current, filingCitations })}
+            engine={engine}
           />
-        )}
-      </div>
+          {viewer && viewer.current.citation.chunk_index != null && (
+            <FilingViewer
+              ticker={ticker}
+              companyName={companyName}
+              citation={viewer.current.citation}
+              citationNumber={viewer.current.number}
+              filingCitations={viewer.filingCitations}
+              onNavigate={(citation, number) => setViewer(v => v ? { ...v, current: { citation, number } } : v)}
+              onAskAboutPassage={handleSend}
+              onClose={() => setViewer(null)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

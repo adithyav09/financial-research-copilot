@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Info, LogOut, ChevronDown, History } from "lucide-react";
+import { Info, LogOut, ChevronDown, History, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import ThesisMark from "./ThesisMark";
 
@@ -8,9 +8,11 @@ interface NavbarProps {
   showHistory?: boolean;
   /** Opens the "How answers are made" transparency panel (Phase 5). */
   onShowHowAnswersAreMade?: () => void;
+  /** Opens the admin dashboard (admin role only). */
+  onOpenAdmin?: () => void;
 }
 
-export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersAreMade }: NavbarProps) {
+export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersAreMade, onOpenAdmin }: NavbarProps) {
   const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -111,6 +113,17 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
                   </div>
                 </div>
 
+                {/* Admin dashboard entry point */}
+                {profile.role === "admin" && onOpenAdmin && (
+                  <button
+                    onClick={() => { setOpen(false); onOpenAdmin(); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 transition-colors border-b border-border"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Admin Dashboard
+                  </button>
+                )}
+
+                {/* Sign out */}
                 <button
                   onClick={() => { setOpen(false); signOut(); }}
                   className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-400 hover:bg-red-500/5 transition-colors"
