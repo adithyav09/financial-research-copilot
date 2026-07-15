@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, BarChart2, User, MessageSquare, ExternalLink, Building2, Pencil } from "lucide-react";
+import { Send, Loader2, MessageSquare, ExternalLink, Building2, Pencil } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import type { ChatMessage, Citation, XBRLFinancials } from "../types";
+import type { ChatMessage, Citation, Depth, XBRLFinancials } from "../types";
 import { api } from "../api/client";
 import VisualizeBuilder from "./charts/VisualizeBuilder";
 import TickerAutocomplete from "./TickerAutocomplete";
+import ThesisMark from "./ThesisMark";
 
 function buildHighlightUrl(baseUrl: string | undefined, text: string): string {
   if (!baseUrl) return "#";
@@ -50,10 +51,10 @@ function CitationBadge({ num, citation }: { num: number; citation: Citation | un
       <button
         ref={btnRef}
         onClick={handleClick}
-        className={`inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
+        className={`inline-flex items-center justify-center min-w-4 h-4 px-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
           open
             ? "bg-accent text-white border-accent"
-            : "bg-accent/25 text-accent hover:bg-accent/45 border-accent/30"
+            : "bg-accent/20 text-accent-hover hover:bg-accent/40 border-accent/35"
         }`}
       >
         {num}
@@ -151,16 +152,6 @@ function renderAnswerWithCitations(content: string, citations: Citation[]) {
 
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
-const LENS_PILLS: { id: string; emoji: string; label: string; subtitle: string }[] = [
-  { id: "value",      emoji: "📊", label: "Value",        subtitle: "P/E, cash flow, book value" },
-  { id: "growth",     emoji: "🚀", label: "Growth",       subtitle: "Revenue growth, R&D, TAM" },
-  { id: "income",     emoji: "💰", label: "Income",       subtitle: "Dividends, payout ratio" },
-  { id: "quality",    emoji: "🏆", label: "Quality",      subtitle: "ROE, ROIC, moat" },
-  { id: "risk_averse",emoji: "🛡️", label: "Conservative", subtitle: "Debt ratios, risk factors" },
-  { id: "esg",        emoji: "🌱", label: "ESG",          subtitle: "Board, sustainability" },
-  { id: "activist",   emoji: "🔍", label: "Deep Dive",    subtitle: "Insider activity, accounting flags" },
-];
-
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -169,12 +160,12 @@ interface ChatPanelProps {
   companyName?: string | null;
   onTickerChange: (ticker: string, companyName?: string) => void;
   ingestPhase: IngestPhase;
-  mode: string;
-  onModeChange: (mode: string) => void;
+  depth: Depth;
+  onDepthChange: (depth: Depth) => void;
   xbrlData?: XBRLFinancials | null;
 }
 
-export default function ChatPanel({ messages, onSend, isLoading, ticker, companyName, onTickerChange, ingestPhase, mode, onModeChange, xbrlData }: ChatPanelProps) {
+export default function ChatPanel({ messages, onSend, isLoading, ticker, companyName, onTickerChange, ingestPhase, depth, onDepthChange, xbrlData }: ChatPanelProps) {
   const isIngested = ingestPhase === "ready";
   const isBusy = ingestPhase === "checking" || ingestPhase === "ingesting" || ingestPhase === "polling";
   const [input, setInput] = useState("");
@@ -196,14 +187,14 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
     if (!ticker || suggestions[msgId]) return;
     setLoadingSuggestions(prev => ({ ...prev, [msgId]: true }));
     try {
-      const res = await api.suggestions({ ticker, previous_answer: answer, mode });
+      const res = await api.suggestions({ ticker, previous_answer: answer, mode: depth });
       setSuggestions(prev => ({ ...prev, [msgId]: res.suggestions }));
     } catch {
       setSuggestions(prev => ({ ...prev, [msgId]: [] }));
     } finally {
       setLoadingSuggestions(prev => ({ ...prev, [msgId]: false }));
     }
-  }, [ticker, mode, suggestions]);
+  }, [ticker, depth, suggestions]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -212,17 +203,15 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
     setInput("");
   };
 
-  const modeLabels: Record<string, string> = {
-    value: "Value", growth: "Growth", income: "Income",
-    quality: "Quality", risk_averse: "Conservative", esg: "ESG", activist: "Deep Dive"
-  };
+  const depthLabel = depth === "simple" ? "Simple" : "Analyst";
 
   return (
     <div className="flex-1 flex flex-col bg-surface min-w-0">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+      {/* Messages — one centered research column, like a note you're reading */}
+      <div className="flex-1 overflow-y-auto px-8 py-7">
+        <div className="max-w-[780px] mx-auto space-y-6">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center gap-5">
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-surface-secondary border border-border flex items-center justify-center">
               {ticker ? <Building2 className="w-6 h-6 text-accent" /> : <MessageSquare className="w-6 h-6 text-gray-500" />}
             </div>
@@ -250,7 +239,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
               <>
                 <div>
                   <h3 className="text-base font-semibold text-gray-200">
-                    {isBusy ? `Loading ${companyName ?? ticker}…` : `Analyze ${companyName ?? ticker}`}
+                    {isBusy ? `Loading ${companyName ?? ticker}…` : `Research ${companyName ?? ticker}`}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1 max-w-sm">
                     Ask about revenue, risks, strategy, valuation, or the latest news.
@@ -270,58 +259,57 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
         )}
 
         {messages.map((msg, msgIdx) => (
-          <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            {msg.role === "assistant" && (
-              <div className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 mt-1">
-                <BarChart2 className="w-3.5 h-3.5 text-accent" />
+          msg.role === "user" ? (
+            <div key={msg.id} className="flex justify-end">
+              <div className="max-w-[80%] rounded-[14px] px-4 py-3 text-sm leading-relaxed bg-accent/15 border border-accent/25 text-gray-100">
+                <p className="whitespace-pre-wrap">{msg.content}</p>
               </div>
-            )}
-            <div className={`max-w-[78%] space-y-2 ${
-              msg.role === "user" ? "items-end" : "items-start"
-            } flex flex-col`}>
-              {msg.role === "assistant" && msg.mode && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 uppercase tracking-wider">
-                  {modeLabels[msg.mode] ?? msg.mode} Analysis
+            </div>
+          ) : (
+            <div key={msg.id} className="flex flex-col gap-2.5">
+              {/* Answer header: brand + depth + grounding meta */}
+              <div className="flex items-center gap-2">
+                <ThesisMark size={22} />
+                <span className="text-xs font-semibold text-gray-300">Thesis</span>
+                <span className="text-[11px] text-gray-600">
+                  · {depthLabel} depth
+                  {msg.citations?.length ? " · grounded in filings + live data" : " · live data"}
                 </span>
-              )}
-              <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-accent/15 border border-accent/25 text-gray-100"
-                  : "bg-surface-secondary border border-border text-gray-200"
-              }`}>
-                {msg.role === "assistant"
-                  ? (msg.citations?.length
-                      ? renderAnswerWithCitations(msg.content, msg.citations)
-                      : <ReactMarkdown components={makeMarkdownComponents([]) as never}>{msg.content}</ReactMarkdown>)
-                  : <p className="whitespace-pre-wrap">{msg.content}</p>}
-                {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Sources</p>
-                    <div className="flex flex-col gap-1">
-                      {msg.citations.map((c, i) => (
-                        <a
-                          key={i}
-                          href={c.url || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-accent transition-colors truncate group"
-                        >
-                          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[8px] font-bold bg-accent/15 text-accent border border-accent/20 shrink-0">{i + 1}</span>
-                          <span className="truncate group-hover:underline">{c.source}</span>
-                          <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-50" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
+
+              <div className="rounded-xl border border-border bg-surface-secondary px-[18px] py-4 text-sm leading-[1.7] text-gray-300">
+                {msg.citations?.length
+                  ? renderAnswerWithCitations(msg.content, msg.citations)
+                  : <ReactMarkdown components={makeMarkdownComponents([]) as never}>{msg.content}</ReactMarkdown>}
+              </div>
+
+              {/* Sources row — chips instead of a link list */}
+              {msg.citations && msg.citations.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-wider mr-0.5">Sources</span>
+                  {msg.citations.map((c, i) => (
+                    <a
+                      key={i}
+                      href={c.url ? buildHighlightUrl(c.url, c.text) : "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-secondary border border-border text-[11px] text-gray-300 hover:border-accent/40 hover:text-white transition-all max-w-56"
+                    >
+                      <span className="font-mono font-bold text-accent-hover shrink-0">{i + 1}</span>
+                      <span className="truncate">{c.source}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {/* On-demand chart builder under the latest answer (no keyword guessing) */}
-              {msg.role === "assistant" && msgIdx === messages.length - 1 && xbrlData && (
+              {msgIdx === messages.length - 1 && xbrlData && (
                 <VisualizeBuilder xbrl={xbrlData} ticker={ticker} />
               )}
-              {/* P6: suggestions chips — only after last assistant message */}
-              {msg.role === "assistant" && msgIdx === messages.length - 1 && !isLoading && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
+
+              {/* Follow-up chips — only after last assistant message */}
+              {msgIdx === messages.length - 1 && !isLoading && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {loadingSuggestions[msg.id] && (
                     <span className="text-[11px] text-gray-600 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Generating follow-ups…</span>
                   )}
@@ -337,109 +325,105 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
                     <button
                       key={s}
                       onClick={() => onSend(s)}
-                      className="text-[11px] text-gray-300 hover:text-white bg-surface-secondary hover:bg-surface-tertiary border border-border hover:border-accent/30 px-3 py-1.5 rounded-full transition-all"
+                      className="text-[11.5px] text-gray-300 hover:text-white bg-surface-secondary hover:bg-surface-tertiary border border-border hover:border-accent/30 px-3.5 py-[7px] rounded-full transition-all"
                     >
                       {s}
                     </button>
                   ))}
                 </div>
               )}
-              <span className="text-[10px] text-gray-600 px-1">
-                {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </span>
             </div>
-            {msg.role === "user" && (
-              <div className="w-7 h-7 rounded-lg bg-surface-tertiary border border-border flex items-center justify-center shrink-0 mt-1">
-                <User className="w-3.5 h-3.5 text-gray-400" />
-              </div>
-            )}
-          </div>
+          )
         ))}
 
         {isLoading && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-              <BarChart2 className="w-3.5 h-3.5 text-accent" />
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-2">
+              <ThesisMark size={22} />
+              <span className="text-xs font-semibold text-gray-300">Thesis</span>
             </div>
-            <div className="bg-surface-secondary border border-border rounded-xl px-4 py-3 flex items-center gap-2">
+            <div className="rounded-xl border border-border bg-surface-secondary px-4 py-3 flex items-center gap-2 self-start">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-              <span className="text-xs text-gray-500">Analyzing filing…</span>
+              <span className="text-xs text-gray-500">Researching…</span>
             </div>
           </div>
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-border px-4 pt-3 pb-3 bg-surface-secondary space-y-2">
-        {/* Company selector — the ticker lives here, next to where you ask */}
-        <div className="flex items-center gap-2">
-          {ticker && !pickerOpen ? (
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/25 text-accent text-xs font-semibold min-w-0">
-                <Building2 className="w-3.5 h-3.5 shrink-0" />
-                <span className="font-mono">{ticker}</span>
-                {companyName && <span className="text-gray-300 font-normal truncate">· {companyName}</span>}
-              </span>
-              <button type="button" onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-accent transition-colors">
-                <Pencil className="w-3 h-3" /> Change
-              </button>
+      {/* Composer — ticker + depth controls live inside the input card */}
+      <form onSubmit={handleSubmit} className="border-t border-border px-8 pt-3.5 pb-3 bg-surface flex flex-col items-center">
+        <div className="w-full max-w-[780px] rounded-[14px] border border-border bg-surface-secondary p-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            {/* Company pill */}
+            {ticker && !pickerOpen ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/25 text-xs min-w-0">
+                  <span className="font-mono font-semibold text-accent">{ticker}</span>
+                  {companyName && <span className="text-gray-300 truncate">{companyName}</span>}
+                </span>
+                <button type="button" onClick={() => setPickerOpen(true)}
+                  className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-accent transition-colors shrink-0">
+                  <Pencil className="w-3 h-3" /> Change
+                </button>
+              </div>
+            ) : (
+              <div className="w-full max-w-xs">
+                <TickerAutocomplete value={pickerOpen ? "" : ticker} onChange={selectCompany} autoFocus={pickerOpen} />
+              </div>
+            )}
+
+            {/* Depth toggle — replaces the 7 analysis-mode pills */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10.5px] text-gray-500">Depth</span>
+              <div className="flex border border-border rounded-full p-0.5 bg-surface">
+                {(["simple", "analyst"] as Depth[]).map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => onDepthChange(d)}
+                    title={d === "simple" ? "Defines jargon inline — for people learning to read filings" : "Professional register — assumes financial fluency"}
+                    className={`px-3 py-1 rounded-full text-[11px] transition-all ${
+                      depth === d
+                        ? "font-semibold text-accent-hover bg-accent/15 border border-accent/30"
+                        : "font-medium text-gray-500 hover:text-gray-300 border border-transparent"
+                    }`}
+                  >
+                    {d === "simple" ? "Simple" : "Analyst"}
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div className="w-full max-w-xs">
-              <TickerAutocomplete value={pickerOpen ? "" : ticker} onChange={selectCompany} autoFocus={pickerOpen} />
-            </div>
-          )}
-        </div>
-        {/* Analyst lens pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {LENS_PILLS.map((pill) => (
+          </div>
+
+          {/* Text input row */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
+              placeholder={
+                !ticker ? "Pick a company above to start…"
+                  : isBusy ? `Loading ${companyName ?? ticker}… your question will send automatically`
+                  : messages.length ? `Ask a follow-up about ${companyName ?? ticker}…`
+                  : `Ask anything about ${companyName ?? ticker}…`
+              }
+              disabled={!ticker || isLoading}
+              className="flex-1 px-3 py-2 bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none disabled:opacity-40"
+            />
             <button
-              key={pill.id}
-              type="button"
-              title={`${pill.label} — ${pill.subtitle}`}
-              onClick={() => onModeChange(pill.id)}
-              className={`group relative flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-                mode === pill.id
-                  ? "bg-accent/15 border-accent/40 text-accent"
-                  : "border-border text-gray-500 hover:text-gray-300 hover:border-gray-600"
-              }`}
+              type="submit"
+              disabled={!input.trim() || isLoading || !ticker}
+              className="p-2.5 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-[9px] transition-all active:scale-95"
             >
-              <span>{pill.emoji}</span>
-              <span>{pill.label}</span>
-              {/* Tooltip */}
-              <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[160px] rounded-md bg-gray-900 border border-border px-2 py-1 text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity text-center z-50">
-                {pill.subtitle}
-              </span>
+              {isLoading && !isIngested ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Send className="w-4 h-4 text-white" />}
             </button>
-          ))}
+          </div>
         </div>
-        {/* Text input row */}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-            placeholder={
-              !ticker ? "Pick a company above to start…"
-                : isBusy ? `Loading ${companyName ?? ticker}… your question will send automatically`
-                : `Ask anything about ${companyName ?? ticker}…`
-            }
-            disabled={!ticker || isLoading}
-            className="flex-1 px-4 py-2.5 bg-surface rounded-lg border border-border text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all disabled:opacity-40"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading || !ticker}
-            className="p-2.5 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-all active:scale-95 shadow-md shadow-accent/20"
-          >
-            {isLoading && !isIngested ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
-        </div>
-        <p className="text-[10px] text-gray-600 text-center">
-          Grounded in SEC filings &amp; live market data · Not investment advice
+        <p className="mt-2 text-[10.5px] text-gray-600 text-center">
+          Answers cite SEC filings · Can make mistakes — check the sources · Not investment advice
         </p>
       </form>
     </div>

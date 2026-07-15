@@ -112,6 +112,8 @@ class MarketDataResponse(BaseModel):
     analyst_recommendation: Optional[str] = None
     short_float_percent: Optional[float] = None
     shares_outstanding: Optional[float] = None
+    day_change_percent: Optional[float] = None
+    price_history: Optional[List[float]] = None
 
 
 class XBRLFinancialsResponse(BaseModel):

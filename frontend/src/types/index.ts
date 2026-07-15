@@ -7,6 +7,13 @@ export type AnalysisMode =
   | "esg"
   | "activist";
 
+/**
+ * Explanation depth for answers. Replaces the 7 analysis-mode personas in the UI:
+ * "simple" defines jargon inline for people learning to read filings; "analyst"
+ * is the professional register. Depth changes framing only — never the data.
+ */
+export type Depth = "simple" | "analyst";
+
 export interface IngestRequest {
   ticker: string;
 }
@@ -80,6 +87,8 @@ export interface MarketData {
   analyst_recommendation?: string;
   short_float_percent?: number;
   shares_outstanding?: number;
+  day_change_percent?: number;
+  price_history?: number[];
 }
 
 export interface XBRLDataPoint {

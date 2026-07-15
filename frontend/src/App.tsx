@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
@@ -8,20 +8,20 @@ import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
 import { api, needsIngestion } from "./api/client";
-import type { AnalysisMode, ChatMessage, MarketData, QueryResponse, XBRLFinancials } from "./types";
+import type { AnalysisMode, ChatMessage, Depth, MarketData, QueryResponse, StatusResponse, XBRLFinancials } from "./types";
 
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
 export default function App() {
   const { session, profile, loading, refreshProfile } = useAuth();
-  const [backendStatus, setBackendStatus] = useState<"healthy" | "offline" | "checking">("checking");
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState<string | null>(null);
-  const [mode, setMode] = useState<AnalysisMode>("value");
+  const [depth, setDepth] = useState<Depth>("analyst");
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>("idle");
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [xbrlData, setXbrlData] = useState<XBRLFinancials | null>(null);
+  const [filingStatus, setFilingStatus] = useState<StatusResponse | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
@@ -29,13 +29,6 @@ export default function App() {
   const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    api
-      .health()
-      .then(() => setBackendStatus("healthy"))
-      .catch(() => setBackendStatus("offline"));
-  }, []);
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -59,6 +52,7 @@ export default function App() {
     }).catch(() => {});
     api.xbrl(t).then(setXbrlData).catch(() => {});
     api.status(t).then(s => {
+      setFilingStatus(s ?? null);
       if (s?.status === "ready") {
         setIngestPhase(prev => (prev === "idle" ? "ready" : prev));
         setIngestMessage(`Annual report ready${s.filing_year ? ` · FY${s.filing_year}` : ""}`);
@@ -80,6 +74,7 @@ export default function App() {
     setIngestMessage(null);
     setMarketData(null);
     setXbrlData(null);
+    setFilingStatus(null);
     setStaleInfo(null);
     stopPolling();
     pendingQuestionRef.current = null;
@@ -92,7 +87,9 @@ export default function App() {
   const submitQuery = async (question: string, t: string, retriedAfterIngest = false) => {
     setIsQuerying(true);
     try {
-      const res = await api.query({ ticker: t, question, mode, session_id: sessionId });
+      // Depth is a UI concept until Phase 2 lands the backend `depth` param;
+      // until then every query goes out under the neutral "value" mode.
+      const res = await api.query({ ticker: t, question, mode: "value" as AnalysisMode, session_id: sessionId });
       setMessages(prev => [...prev, assistantMessage(res, question)]);
       setIngestPhase("ready");
       refreshProfile().catch(() => {});
@@ -208,26 +205,24 @@ export default function App() {
     setIngestMessage(null);
     setMarketData(null);
     setXbrlData(null);
+    setFilingStatus(null);
     setStaleInfo(null);
     stopPolling();
     pendingQuestionRef.current = null;
   };
 
+  const sessionStats = {
+    questions: messages.filter(m => m.role === "user").length,
+    citations: messages.reduce((n, m) => n + (m.citations?.length ?? 0), 0),
+  };
+
   // profile.role === "approved" | "admin" — show the full app
   return (
     <div className="h-screen flex flex-col">
-      <Navbar backendStatus={backendStatus} onToggleHistory={() => setShowHistory(h => !h)} showHistory={showHistory} />
-      <div className="flex items-start gap-2 px-6 py-2 bg-amber-500/15 border-b border-amber-500/40 text-amber-200 text-xs">
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-        <span>
-          This tool provides research assistance based on public SEC filings. Nothing here
-          is investment advice. Always verify information and consult a licensed professional
-          before making investment decisions.
-        </span>
-      </div>
+      <Navbar onToggleHistory={() => setShowHistory(h => !h)} showHistory={showHistory} />
       <div className="flex flex-1 overflow-hidden">
         {showHistory && (
-          <div className="w-56 shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
+          <div className="w-[232px] shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
             <ChatHistory
               currentSessionId={sessionId}
               currentTicker={ticker}
@@ -238,6 +233,7 @@ export default function App() {
                 setIngestMessage(null);
                 setMarketData(null);
                 setXbrlData(null);
+                setFilingStatus(null);
                 setStaleInfo(null);
                 stopPolling();
                 pendingQuestionRef.current = null;
@@ -274,7 +270,9 @@ export default function App() {
           ingestPhase={ingestPhase}
           ingestMessage={ingestMessage}
           marketData={marketData}
+          filingStatus={filingStatus}
           staleInfo={staleInfo}
+          sessionStats={sessionStats}
           onReIngest={() => {
             setStaleInfo(null);
             setIngestPhase("ingesting");
@@ -298,8 +296,8 @@ export default function App() {
           companyName={companyName}
           onTickerChange={handleTickerChange}
           ingestPhase={ingestPhase}
-          mode={mode}
-          onModeChange={(m) => setMode(m as AnalysisMode)}
+          depth={depth}
+          onDepthChange={setDepth}
           xbrlData={xbrlData}
         />
       </div>
