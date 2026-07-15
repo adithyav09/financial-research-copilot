@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, MessageSquare, Building2, Pencil } from "lucide-react";
+import { Send, Loader2, MessageSquare, Building2, Pencil, CheckCircle2, AlertCircle } from "lucide-react";
+import type { EngineState } from "../App";
 import type { ChatMessage, Citation, Depth, XBRLFinancials } from "../types";
 import { api } from "../api/client";
 import VisualizeBuilder from "./charts/VisualizeBuilder";
@@ -28,9 +29,82 @@ interface ChatPanelProps {
   xbrlData?: XBRLFinancials | null;
   /** Opens the in-app filing viewer on a cited passage (design 1c). */
   onOpenCitation?: (ref: CitationRef, filingCitations: CitationRef[]) => void;
+  engine?: EngineState;
 }
 
-export default function ChatPanel({ messages, onSend, isLoading, ticker, companyName, onTickerChange, ingestPhase, depth, onDepthChange, xbrlData, onOpenCitation }: ChatPanelProps) {
+/** Design 1j state 1: warm-up card shown while free hosting wakes up. */
+function EngineWakingBanner({ engine }: { engine: EngineState }) {
+  if (engine.status === "offline") {
+    return (
+      <div className="rounded-xl border border-red-500/25 bg-red-500/5 px-4 py-3 flex items-center gap-3">
+        <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px] font-semibold text-gray-200">The research engine isn't responding</p>
+          <p className="text-[11px] text-gray-500">Try refreshing in a minute — free hosting sometimes takes a while to wake.</p>
+        </div>
+      </div>
+    );
+  }
+  // Design shows ~25s as the typical wake; cap the bar short of full so it
+  // never claims "done" before the health check actually succeeds.
+  const pct = Math.min(95, (engine.elapsed / 25) * 100);
+  return (
+    <div className="rounded-xl border border-border bg-surface-secondary px-4 py-3 flex items-center gap-3">
+      <Loader2 className="w-4 h-4 text-accent-hover animate-spin shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[12.5px] font-semibold text-gray-200">Starting the research engine…</p>
+        <p className="text-[11px] text-gray-500">
+          Free hosting naps between visits — usually ready in ~25s. You can type now; your question sends the moment it wakes.
+        </p>
+      </div>
+      <div className="w-[120px] shrink-0">
+        <div className="h-1 rounded-full bg-surface-tertiary overflow-hidden">
+          <div className="h-full rounded-full bg-accent transition-all duration-1000" style={{ width: `${pct}%` }} />
+        </div>
+        <p className="mt-1 font-mono text-[10px] text-gray-600 text-right">{engine.elapsed}s</p>
+      </div>
+    </div>
+  );
+}
+
+/** Design 1j state 2: staged first-ingest progress instead of a spinner. */
+function IngestStages({ ticker, companyName, phase }: { ticker: string; companyName?: string | null; phase: IngestPhase }) {
+  const stages = [
+    { label: "Engine awake", state: "done" },
+    {
+      label: `Finding ${companyName ?? ticker}'s latest filings on SEC EDGAR`,
+      state: phase === "ingesting" ? "active" : "done",
+    },
+    {
+      label: "Reading & indexing the filing",
+      state: phase === "polling" ? "active" : "pending",
+    },
+    { label: "Writing your answer with citations", state: "pending" },
+  ] as const;
+
+  return (
+    <div className="rounded-xl border border-border bg-surface-secondary px-[18px] py-4 max-w-[560px]">
+      <div className="flex flex-col gap-2.5">
+        {stages.map(s => (
+          <div key={s.label} className="flex items-center gap-2.5">
+            {s.state === "done" && <CheckCircle2 className="w-[13px] h-[13px] text-emerald-400 shrink-0" />}
+            {s.state === "active" && <Loader2 className="w-[13px] h-[13px] text-accent-hover animate-spin shrink-0" />}
+            {s.state === "pending" && <span className="w-[13px] h-[13px] rounded-full border border-dashed border-gray-700 shrink-0" />}
+            <span className={`text-[12.5px] ${s.state === "active" ? "text-gray-200" : s.state === "done" ? "text-gray-400" : "text-gray-600"}`}>
+              {s.label}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 pt-2.5 border-t border-border/60 text-[11px] text-gray-600 leading-relaxed">
+        The first question on a company takes ~30s while the filing is indexed. After that,
+        answers on {ticker} are near-instant — the index is cached.
+      </p>
+    </div>
+  );
+}
+
+export default function ChatPanel({ messages, onSend, isLoading, ticker, companyName, onTickerChange, ingestPhase, depth, onDepthChange, xbrlData, onOpenCitation, engine }: ChatPanelProps) {
   const isIngested = ingestPhase === "ready";
   const isBusy = ingestPhase === "checking" || ingestPhase === "ingesting" || ingestPhase === "polling";
   const [input, setInput] = useState("");
@@ -77,6 +151,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
       {/* Messages — one centered research column, like a note you're reading */}
       <div className="flex-1 overflow-y-auto px-8 py-7">
         <div className="max-w-[780px] mx-auto space-y-6">
+        {engine && engine.status !== "ready" && <EngineWakingBanner engine={engine} />}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-surface-secondary border border-border flex items-center justify-center">
@@ -242,10 +317,16 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
               <ThesisMark size={22} />
               <span className="text-xs font-semibold text-gray-300">Thesis</span>
             </div>
-            <div className="rounded-xl border border-border bg-surface-secondary px-4 py-3 flex items-center gap-2 self-start">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-              <span className="text-xs text-gray-500">Researching…</span>
-            </div>
+            {/* First ingest gets the staged checklist (design 1j); ordinary
+                queries keep the lightweight researching card */}
+            {ingestPhase === "ingesting" || ingestPhase === "polling" ? (
+              <IngestStages ticker={ticker} companyName={companyName} phase={ingestPhase} />
+            ) : (
+              <div className="rounded-xl border border-border bg-surface-secondary px-4 py-3 flex items-center gap-2 self-start">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+                <span className="text-xs text-gray-500">Researching…</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -306,6 +387,7 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
               placeholder={
                 !ticker ? "Pick a company above to start…"
+                  : engine?.status === "waking" ? "Engine waking… your question sends the moment it's ready"
                   : isBusy ? `Loading ${companyName ?? ticker}… your question will send automatically`
                   : messages.length ? `Ask a follow-up about ${companyName ?? ticker}…`
                   : `Ask anything about ${companyName ?? ticker}…`

@@ -20,6 +20,12 @@ interface ViewerState {
   filingCitations: CitationRef[];
 }
 
+/** Cold-start state (design 1j): free hosting naps between visits. */
+export interface EngineState {
+  status: "waking" | "ready" | "offline";
+  elapsed: number;
+}
+
 export default function App() {
   const { session, profile, loading, refreshProfile } = useAuth();
   const [ticker, setTicker] = useState("");
@@ -40,8 +46,41 @@ export default function App() {
   const [noticeAcknowledged, setNoticeAcknowledged] = useState<boolean>(
     () => localStorage.getItem(NOTICE_STORAGE_KEY) === "true"
   );
+  const [engine, setEngine] = useState<EngineState>({ status: "waking", elapsed: 0 });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
+  // A question typed while the engine was still waking — sent automatically
+  // the moment /health responds (design 1j: "you can type now").
+  const queuedWhileWakingRef = useRef<string | null>(null);
+
+  // Warm-up begins on page load, not on first question: ping /health with
+  // retries so a Render cold start is already underway while the user types.
+  useEffect(() => {
+    let cancelled = false;
+    const started = Date.now();
+    const timer = setInterval(() => {
+      setEngine(e => e.status === "waking" ? { ...e, elapsed: Math.round((Date.now() - started) / 1000) } : e);
+    }, 1000);
+
+    (async () => {
+      while (!cancelled) {
+        try {
+          await api.health();
+          if (!cancelled) setEngine({ status: "ready", elapsed: 0 });
+          return;
+        } catch {
+          // Free-tier cold starts take ~25-60s; give up only after 2 minutes
+          if (Date.now() - started > 120_000) {
+            if (!cancelled) setEngine(e => ({ ...e, status: "offline" }));
+            return;
+          }
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    })();
+
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -172,8 +211,24 @@ export default function App() {
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date(),
     }]);
+    if (engine.status === "waking") {
+      // Engine still waking — hold the question; the flush effect sends it
+      queuedWhileWakingRef.current = question;
+      return;
+    }
     await submitQuery(question, t);
   };
+
+  // Flush the queued question once the engine wakes
+  useEffect(() => {
+    if (engine.status !== "ready") return;
+    const q = queuedWhileWakingRef.current;
+    if (q && ticker) {
+      queuedWhileWakingRef.current = null;
+      submitQuery(q, ticker);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine.status]);
 
   // Auth gates — checked in order before showing the main app
   if (loading) {
@@ -327,6 +382,7 @@ export default function App() {
           onDepthChange={setDepth}
           xbrlData={xbrlData}
           onOpenCitation={(current, filingCitations) => setViewer({ current, filingCitations })}
+          engine={engine}
         />
         {viewer && viewer.current.citation.chunk_index != null && (
           <FilingViewer
