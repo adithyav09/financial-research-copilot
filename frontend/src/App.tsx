@@ -5,6 +5,8 @@ import Sidebar from "./components/Sidebar";
 import ChatPanel, { type CitationRef } from "./components/ChatPanel";
 import ChatHistory from "./components/ChatHistory";
 import FilingViewer from "./components/FilingViewer";
+import FirstRunNotice, { NOTICE_STORAGE_KEY } from "./components/FirstRunNotice";
+import HowAnswersPanel from "./components/HowAnswersPanel";
 import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
@@ -34,6 +36,10 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(true);
   const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
+  const [showHowAnswers, setShowHowAnswers] = useState(false);
+  const [noticeAcknowledged, setNoticeAcknowledged] = useState<boolean>(
+    () => localStorage.getItem(NOTICE_STORAGE_KEY) === "true"
+  );
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
 
@@ -227,7 +233,20 @@ export default function App() {
   // profile.role === "approved" | "admin" — show the full app
   return (
     <div className="h-screen flex flex-col">
-      <Navbar onToggleHistory={() => setShowHistory(h => !h)} showHistory={showHistory} />
+      {!noticeAcknowledged && (
+        <FirstRunNotice
+          onAcknowledge={() => {
+            localStorage.setItem(NOTICE_STORAGE_KEY, "true");
+            setNoticeAcknowledged(true);
+          }}
+        />
+      )}
+      {showHowAnswers && <HowAnswersPanel onClose={() => setShowHowAnswers(false)} />}
+      <Navbar
+        onToggleHistory={() => setShowHistory(h => !h)}
+        showHistory={showHistory}
+        onShowHowAnswersAreMade={() => setShowHowAnswers(true)}
+      />
       <div className="flex flex-1 overflow-hidden">
         {showHistory && (
           <div className="w-[232px] shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
