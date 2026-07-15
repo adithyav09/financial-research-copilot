@@ -1,4 +1,5 @@
 import type {
+  FilingPassageResponse,
   HealthResponse,
   IngestRequest,
   IngestResponse,
@@ -98,4 +99,9 @@ export const api = {
 
   tickers: (q: string, limit = 8) =>
     request<TickerSearchResponse>(`/api/tickers?q=${encodeURIComponent(q)}&limit=${limit}`),
+
+  filingPassage: (ticker: string, chunkIndex: number, filingType = "10-K") =>
+    request<FilingPassageResponse>(
+      `/api/filing/${ticker}/passage?chunk_index=${chunkIndex}&filing_type=${encodeURIComponent(filingType)}`
+    ),
 };

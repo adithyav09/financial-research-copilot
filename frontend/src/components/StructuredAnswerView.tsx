@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Citation, StructuredAnswer, XBRLFinancials, XBRLDataPoint } from "../types";
-import AnswerMarkdown from "./AnswerMarkdown";
+import AnswerMarkdown, { type CitationClickHandler } from "./AnswerMarkdown";
 import MetricChart, { type ChartSeries } from "./charts/MetricChart";
 
 // Series palette + labels for the auto chart. Keys mirror the backend's
@@ -66,13 +66,14 @@ interface Props {
   structured: StructuredAnswer;
   citations: Citation[];
   xbrlData?: XBRLFinancials | null;
+  onCitationClick?: CitationClickHandler;
 }
 
 /**
  * The design-1b answer stack: takeaway → metric cards → narrative → auto chart.
  * Sources row and follow-ups stay in ChatPanel — they're conversation-level UI.
  */
-export default function StructuredAnswerView({ structured, citations, xbrlData }: Props) {
+export default function StructuredAnswerView({ structured, citations, xbrlData, onCitationClick }: Props) {
   const filingSources = new Set(
     citations.map(c => c.source.split("—")[0]?.trim()).filter(Boolean)
   );
@@ -120,7 +121,7 @@ export default function StructuredAnswerView({ structured, citations, xbrlData }
 
       {/* Narrative */}
       <div className="rounded-xl border border-border bg-surface-secondary px-[18px] py-4 text-sm leading-[1.7] text-gray-300">
-        <AnswerMarkdown content={structured.narrative} citations={citations} />
+        <AnswerMarkdown content={structured.narrative} citations={citations} onCitationClick={onCitationClick} />
       </div>
 
       {/* Auto chart — only when the answer asked for one and we hold the data */}

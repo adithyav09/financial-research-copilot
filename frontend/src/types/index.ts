@@ -40,6 +40,26 @@ export interface Citation {
   source: string;
   page?: string;
   url?: string;
+  /** Set for filing citations only — enables the in-app filing viewer. */
+  chunk_index?: number | null;
+  filing_type?: string | null;
+}
+
+export interface FilingPassage {
+  chunk_index: number;
+  content: string;
+  is_target: boolean;
+}
+
+export interface FilingPassageResponse {
+  ticker: string;
+  filing_type: string;
+  filing_year?: number | null;
+  filing_date?: string | null;
+  sec_url?: string | null;
+  chunk_index: number;
+  chunk_count?: number | null;
+  passages: FilingPassage[];
 }
 
 export interface MetricCardData {

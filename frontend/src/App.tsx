@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
-import ChatPanel from "./components/ChatPanel";
+import ChatPanel, { type CitationRef } from "./components/ChatPanel";
 import ChatHistory from "./components/ChatHistory";
+import FilingViewer from "./components/FilingViewer";
 import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import { useAuth } from "./context/AuthContext";
@@ -11,6 +12,11 @@ import { api, needsIngestion } from "./api/client";
 import type { AnalysisMode, ChatMessage, Depth, MarketData, QueryResponse, StatusResponse, XBRLFinancials } from "./types";
 
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
+
+interface ViewerState {
+  current: CitationRef;
+  filingCitations: CitationRef[];
+}
 
 export default function App() {
   const { session, profile, loading, refreshProfile } = useAuth();
@@ -27,6 +33,7 @@ export default function App() {
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(true);
   const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
+  const [viewer, setViewer] = useState<ViewerState | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
 
@@ -77,6 +84,7 @@ export default function App() {
     setXbrlData(null);
     setFilingStatus(null);
     setStaleInfo(null);
+    setViewer(null);
     stopPolling();
     pendingQuestionRef.current = null;
     if (up) loadTickerData(up);
@@ -206,6 +214,7 @@ export default function App() {
     setXbrlData(null);
     setFilingStatus(null);
     setStaleInfo(null);
+    setViewer(null);
     stopPolling();
     pendingQuestionRef.current = null;
   };
@@ -298,7 +307,20 @@ export default function App() {
           depth={depth}
           onDepthChange={setDepth}
           xbrlData={xbrlData}
+          onOpenCitation={(current, filingCitations) => setViewer({ current, filingCitations })}
         />
+        {viewer && viewer.current.citation.chunk_index != null && (
+          <FilingViewer
+            ticker={ticker}
+            companyName={companyName}
+            citation={viewer.current.citation}
+            citationNumber={viewer.current.number}
+            filingCitations={viewer.filingCitations}
+            onNavigate={(citation, number) => setViewer(v => v ? { ...v, current: { citation, number } } : v)}
+            onAskAboutPassage={handleSend}
+            onClose={() => setViewer(null)}
+          />
+        )}
       </div>
     </div>
   );

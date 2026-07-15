@@ -600,12 +600,17 @@ async def query_filing(
                 cite_ticker = metadata.get('ticker', ticker.upper())
                 filing_type = metadata.get('filing_type', '10-K')
                 year = metadata.get('filing_year', 'N/A')
-                page = metadata.get('page', metadata.get('chunk_index', 'N/A'))
+                chunk_index = metadata.get('chunk_index')
+                page = metadata.get('page', chunk_index if chunk_index is not None else 'N/A')
                 citations.append(Citation(
                     text=doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
                     source=f"{cite_ticker} {filing_type} {year} — chunk {i+1}",
                     page=str(page),
                     url=sec_url,
+                    # chunk_index + filing_type let the frontend open this
+                    # passage in the in-app filing viewer (design 1c).
+                    chunk_index=chunk_index if isinstance(chunk_index, int) else None,
+                    filing_type=filing_type,
                 ))
 
         return {

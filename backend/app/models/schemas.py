@@ -57,6 +57,28 @@ class Citation(BaseModel):
     source: str
     page: Optional[str] = None
     url: Optional[str] = None
+    # Set only for filing citations — lets the frontend open the passage in
+    # the in-app filing viewer instead of jumping to SEC.gov in a new tab.
+    chunk_index: Optional[int] = None
+    filing_type: Optional[str] = None
+
+
+class FilingPassage(BaseModel):
+    chunk_index: int
+    content: str
+    is_target: bool = False
+
+
+class FilingPassageResponse(BaseModel):
+    """A cited chunk plus its neighbors, for the in-app filing viewer."""
+    ticker: str
+    filing_type: str
+    filing_year: Optional[int] = None
+    filing_date: Optional[str] = None
+    sec_url: Optional[str] = None
+    chunk_index: int
+    chunk_count: Optional[int] = None
+    passages: list[FilingPassage] = []
 
 
 class MetricCard(BaseModel):

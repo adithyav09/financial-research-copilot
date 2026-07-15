@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, MessageSquare, Building2, Pencil } from "lucide-react";
-import type { ChatMessage, Depth, XBRLFinancials } from "../types";
+import type { ChatMessage, Citation, Depth, XBRLFinancials } from "../types";
 import { api } from "../api/client";
 import VisualizeBuilder from "./charts/VisualizeBuilder";
 import TickerAutocomplete from "./TickerAutocomplete";
@@ -9,6 +9,11 @@ import AnswerMarkdown, { buildHighlightUrl } from "./AnswerMarkdown";
 import StructuredAnswerView from "./StructuredAnswerView";
 
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
+
+export interface CitationRef {
+  citation: Citation;
+  number: number;
+}
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -21,9 +26,11 @@ interface ChatPanelProps {
   depth: Depth;
   onDepthChange: (depth: Depth) => void;
   xbrlData?: XBRLFinancials | null;
+  /** Opens the in-app filing viewer on a cited passage (design 1c). */
+  onOpenCitation?: (ref: CitationRef, filingCitations: CitationRef[]) => void;
 }
 
-export default function ChatPanel({ messages, onSend, isLoading, ticker, companyName, onTickerChange, ingestPhase, depth, onDepthChange, xbrlData }: ChatPanelProps) {
+export default function ChatPanel({ messages, onSend, isLoading, ticker, companyName, onTickerChange, ingestPhase, depth, onDepthChange, xbrlData, onOpenCitation }: ChatPanelProps) {
   const isIngested = ingestPhase === "ready";
   const isBusy = ingestPhase === "checking" || ingestPhase === "ingesting" || ingestPhase === "polling";
   const [input, setInput] = useState("");
@@ -132,6 +139,15 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
           const followUps = msg.structured?.follow_ups ?? suggestions[msg.id] ?? null;
           const isLast = msgIdx === messages.length - 1;
 
+          // Citations that can open in the in-app viewer (have a chunk on file)
+          const filingCitations: CitationRef[] = (msg.citations ?? [])
+            .map((citation, i) => ({ citation, number: i + 1 }))
+            .filter(ref => ref.citation.chunk_index != null);
+          const handleCitationClick = onOpenCitation
+            ? (num: number, citation: Citation) =>
+                onOpenCitation({ citation, number: num }, filingCitations)
+            : undefined;
+
           return (
             <div key={msg.id} className="flex flex-col gap-2.5">
               {/* Answer header: brand + depth + grounding meta */}
@@ -149,10 +165,11 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
                   structured={msg.structured}
                   citations={msg.citations ?? []}
                   xbrlData={xbrlData}
+                  onCitationClick={handleCitationClick}
                 />
               ) : (
                 <div className="rounded-xl border border-border bg-surface-secondary px-[18px] py-4 text-sm leading-[1.7] text-gray-300">
-                  <AnswerMarkdown content={msg.content} citations={msg.citations ?? []} />
+                  <AnswerMarkdown content={msg.content} citations={msg.citations ?? []} onCitationClick={handleCitationClick} />
                 </div>
               )}
 
@@ -160,18 +177,28 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
               {msg.citations && msg.citations.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-wider mr-0.5">Sources</span>
-                  {msg.citations.map((c, i) => (
-                    <a
-                      key={i}
-                      href={c.url ? buildHighlightUrl(c.url, c.text) : "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-secondary border border-border text-[11px] text-gray-300 hover:border-accent/40 hover:text-white transition-all max-w-56"
-                    >
-                      <span className="font-mono font-bold text-accent-hover shrink-0">{i + 1}</span>
-                      <span className="truncate">{c.source}</span>
-                    </a>
-                  ))}
+                  {msg.citations.map((c, i) => {
+                    const chipClass = "flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-secondary border border-border text-[11px] text-gray-300 hover:border-accent/40 hover:text-white transition-all max-w-56";
+                    // Filing sources open in-app; live sources (news, quotes) link out
+                    return c.chunk_index != null && handleCitationClick ? (
+                      <button key={i} onClick={() => handleCitationClick(i + 1, c)} className={chipClass}>
+                        <span className="font-mono font-bold text-accent-hover shrink-0">{i + 1}</span>
+                        <span className="truncate">{c.source}</span>
+                      </button>
+                    ) : (
+                      <a
+                        key={i}
+                        href={c.url ? buildHighlightUrl(c.url, c.text) : "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={chipClass}
+                      >
+                        <span className="font-mono font-bold text-accent-hover shrink-0">{i + 1}</span>
+                        <span className="truncate">{c.source}</span>
+                      </a>
+                    );
+                  })}
+                  <span className="text-[10.5px] text-gray-600 ml-1">Click a filing source to read the passage here</span>
                 </div>
               )}
 

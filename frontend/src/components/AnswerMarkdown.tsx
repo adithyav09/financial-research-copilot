@@ -14,7 +14,7 @@ export function buildHighlightUrl(baseUrl: string | undefined, text: string): st
   return `${baseUrl}#:~:text=${encodeURIComponent(words)}`;
 }
 
-export function CitationBadge({ num, citation }: { num: number; citation: Citation | undefined }) {
+export function CitationBadge({ num, citation, onOpen }: { num: number; citation: Citation | undefined; onOpen?: () => void }) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -22,6 +22,10 @@ export function CitationBadge({ num, citation }: { num: number; citation: Citati
   const open = pos !== null;
 
   const handleClick = () => {
+    // When the in-app filing viewer can show this passage, clicking goes
+    // straight there (design 1c). The popover remains the fallback for
+    // citations without a chunk (live data, restored history).
+    if (onOpen) { onOpen(); return; }
     if (open) { setPos(null); return; }
     if (!btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
@@ -90,7 +94,9 @@ export function CitationBadge({ num, citation }: { num: number; citation: Citati
   );
 }
 
-function makeMarkdownComponents(citations: Citation[]) {
+export type CitationClickHandler = (num: number, citation: Citation) => void;
+
+function makeMarkdownComponents(citations: Citation[], onCitationClick?: CitationClickHandler) {
   return {
     h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold text-white mt-4 mb-1.5">{children}</h1>,
     h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-semibold text-white mt-3 mb-1">{children}</h2>,
@@ -106,7 +112,16 @@ function makeMarkdownComponents(citations: Citation[]) {
     span: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
       if (typeof className === "string" && className.startsWith("cit-")) {
         const num = parseInt(className.replace("cit-", ""));
-        return <CitationBadge num={num} citation={citations[num - 1]} />;
+        const citation = citations[num - 1];
+        // Only filing citations (with a chunk to show) route to the viewer
+        const openable = onCitationClick && citation?.chunk_index != null;
+        return (
+          <CitationBadge
+            num={num}
+            citation={citation}
+            onOpen={openable ? () => onCitationClick(num, citation) : undefined}
+          />
+        );
       }
       return <span className={className}>{children}</span>;
     },
@@ -135,7 +150,11 @@ const sanitizeSchema = {
  * Renders answer markdown with [N] markers replaced by interactive citation
  * badges. Pass an empty citations array for citation-less markdown.
  */
-export default function AnswerMarkdown({ content, citations }: { content: string; citations: Citation[] }) {
+export default function AnswerMarkdown({ content, citations, onCitationClick }: {
+  content: string;
+  citations: Citation[];
+  onCitationClick?: CitationClickHandler;
+}) {
   if (!citations.length) {
     return <ReactMarkdown components={makeMarkdownComponents([]) as never}>{content}</ReactMarkdown>;
   }
@@ -145,7 +164,7 @@ export default function AnswerMarkdown({ content, citations }: { content: string
   const prepared = content.replace(/\[(\d+)\]/g, (_m, n) => `<span class="cit-${n}"></span>`);
   return (
     <ReactMarkdown
-      components={makeMarkdownComponents(citations) as never}
+      components={makeMarkdownComponents(citations, onCitationClick) as never}
       rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
     >
       {prepared}
