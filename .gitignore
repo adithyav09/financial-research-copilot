@@ -55,3 +55,6 @@ ehthumbs.db
 *.pyd
 *.so
 backend/debug_env.py
+# Added by Braintrust Wizard
+.env.braintrust
+.braintrust.json
