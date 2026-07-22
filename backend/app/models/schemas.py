@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
@@ -32,10 +32,23 @@ class IngestResponse(BaseModel):
     chunks_processed: int = 0
 
 
+class Depth(str, Enum):
+    """
+    Explanation depth for answers — the Thesis redesign's replacement for the
+    7 analysis-mode personas. Depth changes framing/register only, never the
+    underlying data (same hard product rule that governed modes).
+    """
+    SIMPLE = "simple"
+    ANALYST = "analyst"
+
+
 class QueryRequest(BaseModel):
     ticker: str
     question: str
+    # Deprecated: kept so older clients sending `mode` still validate.
+    # The query path ignores it; `depth` drives the prompt now.
     mode: AnalysisMode = AnalysisMode.VALUE
+    depth: Depth = Depth.ANALYST
     session_id: Optional[str] = None
 
 
@@ -44,6 +57,56 @@ class Citation(BaseModel):
     source: str
     page: Optional[str] = None
     url: Optional[str] = None
+    # Set only for filing citations — lets the frontend open the passage in
+    # the in-app filing viewer instead of jumping to SEC.gov in a new tab.
+    chunk_index: Optional[int] = None
+    filing_type: Optional[str] = None
+
+
+class FilingPassage(BaseModel):
+    chunk_index: int
+    content: str
+    is_target: bool = False
+
+
+class FilingPassageResponse(BaseModel):
+    """A cited chunk plus its neighbors, for the in-app filing viewer."""
+    ticker: str
+    filing_type: str
+    filing_year: Optional[int] = None
+    filing_date: Optional[str] = None
+    sec_url: Optional[str] = None
+    chunk_index: int
+    chunk_count: Optional[int] = None
+    passages: list[FilingPassage] = []
+
+
+class MetricCard(BaseModel):
+    """One headline figure pulled out of the answer (design 1b metric cards)."""
+    label: str
+    value: str
+    delta: Optional[str] = None            # e.g. "+11.9% YoY"
+    delta_direction: Optional[str] = None  # "up" | "down" | "flat" — drives color only
+    citation: Optional[int] = None         # 1-based index into the citations list
+
+
+class ChartSpec(BaseModel):
+    """
+    Auto-chart request from the LLM. metric_keys must come from the XBRL
+    series the backend already serves (validated server-side); the frontend
+    renders from its own /xbrl data — no chart data travels in the answer.
+    """
+    title: str
+    metric_keys: list[str]
+    reason: Optional[str] = None  # shown as "Shown because …"
+
+
+class StructuredAnswer(BaseModel):
+    takeaway: str
+    metrics: list[MetricCard] = []
+    narrative: str
+    chart: Optional[ChartSpec] = None
+    follow_ups: list[str] = []
 
 
 class QueryResponse(BaseModel):
@@ -52,6 +115,9 @@ class QueryResponse(BaseModel):
     ticker: str
     citations: list[Citation] = []
     tokens_used: int = 0
+    # Present when the LLM produced valid structured output; the frontend
+    # falls back to rendering `answer` as markdown when it's null.
+    structured: Optional[StructuredAnswer] = None
 
 
 class HealthResponse(BaseModel):
@@ -92,6 +158,26 @@ class AdminApprovePayload(BaseModel):
     token_budget: Optional[int] = None
 
 
+class AdminUserListResponse(BaseModel):
+    users: List[UserProfileResponse]
+
+
+class GrantTokensPayload(BaseModel):
+    token_budget: int = Field(..., ge=0)
+
+
+class SetRolePayload(BaseModel):
+    role: str
+
+
+class UsageSummaryResponse(BaseModel):
+    total_users: int
+    total_tokens_consumed: int
+    total_token_budget: int
+    by_role: Dict[str, int]
+    max_token_budget_grant: int
+
+
 class MarketDataResponse(BaseModel):
     ticker: str
     company_name: Optional[str] = None
@@ -112,6 +198,8 @@ class MarketDataResponse(BaseModel):
     analyst_recommendation: Optional[str] = None
     short_float_percent: Optional[float] = None
     shares_outstanding: Optional[float] = None
+    day_change_percent: Optional[float] = None
+    price_history: Optional[List[float]] = None
 
 
 class XBRLFinancialsResponse(BaseModel):

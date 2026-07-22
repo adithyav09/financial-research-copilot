@@ -7,6 +7,13 @@ export type AnalysisMode =
   | "esg"
   | "activist";
 
+/**
+ * Explanation depth for answers. Replaces the 7 analysis-mode personas in the UI:
+ * "simple" defines jargon inline for people learning to read filings; "analyst"
+ * is the professional register. Depth changes framing only — never the data.
+ */
+export type Depth = "simple" | "analyst";
+
 export interface IngestRequest {
   ticker: string;
 }
@@ -22,7 +29,9 @@ export interface IngestResponse {
 export interface QueryRequest {
   ticker: string;
   question: string;
-  mode: AnalysisMode;
+  /** Deprecated — backend ignores it; depth drives the prompt now. */
+  mode?: AnalysisMode;
+  depth?: Depth;
   session_id?: string;
 }
 
@@ -31,6 +40,48 @@ export interface Citation {
   source: string;
   page?: string;
   url?: string;
+  /** Set for filing citations only — enables the in-app filing viewer. */
+  chunk_index?: number | null;
+  filing_type?: string | null;
+}
+
+export interface FilingPassage {
+  chunk_index: number;
+  content: string;
+  is_target: boolean;
+}
+
+export interface FilingPassageResponse {
+  ticker: string;
+  filing_type: string;
+  filing_year?: number | null;
+  filing_date?: string | null;
+  sec_url?: string | null;
+  chunk_index: number;
+  chunk_count?: number | null;
+  passages: FilingPassage[];
+}
+
+export interface MetricCardData {
+  label: string;
+  value: string;
+  delta?: string | null;
+  delta_direction?: "up" | "down" | "flat" | null;
+  citation?: number | null;
+}
+
+export interface ChartSpec {
+  title: string;
+  metric_keys: string[];
+  reason?: string | null;
+}
+
+export interface StructuredAnswer {
+  takeaway: string;
+  metrics: MetricCardData[];
+  narrative: string;
+  chart?: ChartSpec | null;
+  follow_ups: string[];
 }
 
 export interface QueryResponse {
@@ -39,6 +90,7 @@ export interface QueryResponse {
   ticker: string;
   citations: Citation[];
   tokens_used: number;
+  structured?: StructuredAnswer | null;
 }
 
 export interface HealthResponse {
@@ -80,6 +132,8 @@ export interface MarketData {
   analyst_recommendation?: string;
   short_float_percent?: number;
   shares_outstanding?: number;
+  day_change_percent?: number;
+  price_history?: number[];
 }
 
 export interface XBRLDataPoint {
@@ -122,12 +176,44 @@ export interface SuggestionsResponse {
   suggestions: string[];
 }
 
+export interface AdminUser {
+  user_id: string;
+  email?: string;
+  role: "pending" | "approved" | "admin" | "denied";
+  token_budget: number;
+  tokens_consumed: number;
+  created_at?: string;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUser[];
+}
+
+export interface PendingAccessRequest {
+  id: string;
+  user_id: string;
+  email: string;
+  use_case: string;
+  investor_type: string;
+  status: string;
+  created_at: string;
+}
+
+export interface UsageSummary {
+  total_users: number;
+  total_tokens_consumed: number;
+  total_token_budget: number;
+  by_role: Record<string, number>;
+  max_token_budget_grant: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
   mode?: AnalysisMode;
+  structured?: StructuredAnswer | null;
   timestamp: Date;
   question?: string;
 }

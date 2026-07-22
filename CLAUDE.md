@@ -54,9 +54,17 @@ At query time `query_filing` pulls all `ready` jobs for the ticker, picks the mo
 - `xbrl_service.py` — SEC EDGAR XBRL company-facts API: multi-year historical financial *series* (revenue, net income, cash flow, etc.) used for trend context and the on-demand Visualize chart builder (`frontend/src/components/charts/VisualizeBuilder.tsx` + `MetricChart.tsx`).
 - `rag_service.py` — orchestrates all of the above into the LLM prompt. Market + XBRL fetches are **best-effort** (wrapped in try/except, never fail the query).
 
-### Analysis modes (personas)
+### Depth control (replaced the 7 analysis-mode personas)
 
-`AnalysisMode` enum (`models/schemas.py`) has 7 values: value, growth, income, quality, risk_averse, esg, activist. Each maps to a system prompt in `MODE_SYSTEM_PROMPTS` (`rag_service.py`). **Modes change only narrative framing, never the underlying data** (a hard product rule — see below). Every mode prompt is prefixed with `DISCLAIMER` + `NO_ADVICE_INSTRUCTION`.
+The Thesis redesign replaced the 7 `AnalysisMode` personas with a `Depth` enum (`models/schemas.py`): `simple` (defines jargon inline via `EDUCATIONAL_INSTRUCTION`) and `analyst` (professional register, no inline definitions). Prompts live in `DEPTH_SYSTEM_PROMPTS` (`rag_service.py`). **Depth changes only narrative framing/register, never the underlying data** (the same hard product rule that governed modes — see below). Every depth prompt is prefixed with `DISCLAIMER` + `NO_ADVICE_INSTRUCTION`. `AnalysisMode` and `mode` request fields remain accepted for backward compatibility but no longer select prompts; the depth value is logged into the free-text `query_logs.mode` column.
+
+### Structured answers
+
+`query_filing` asks the LLM for a JSON contract (OpenAI JSON mode with plain-call fallback): takeaway, ≤3 metric cards, narrative markdown with `[N]` markers, optional chart spec (keys validated against `XBRL_CHART_KEYS`), and follow-ups. `_parse_structured_answer` hardens the reply and returns `None` on any failure, in which case the raw text renders as a plain markdown answer — never let structure break answering. Chart data never travels in the answer; the frontend renders requested series from its own `/xbrl` data (`StructuredAnswerView.tsx`).
+
+### In-app filing viewer
+
+Filing citations carry `chunk_index` + `filing_type`; `GET /api/filing/{ticker}/passage` (`routes/filing.py`) returns the cited chunk ± neighbors from `document_chunks`. Clicking an inline citation badge or filing source chip opens `FilingViewer.tsx` beside the chat. Live-data citations (news/quotes) keep external links.
 
 ### Auth (Supabase, role-gated)
 
@@ -65,7 +73,11 @@ At query time `query_filing` pulls all `ready` jobs for the ticker, picks the mo
 - `require_approved` — gates `/query` and `/ingest` (403 if pending)
 - `require_admin` — admin-only endpoints
 
-Approved users have a `token_budget` / `tokens_consumed` in `profiles`. Every query logs to `query_logs` and atomically increments consumption via the `increment_tokens_consumed` Postgres RPC (`supabase/migrations/increment_tokens_rpc.sql`).
+Approved users have a `token_budget` in `profiles` and a cap of `settings.max_token_budget_grant` on any grant an admin can make. **`token_usage` is the source of truth for consumption** (`supabase/migrations/token_usage_ledger.sql`) — every query inserts one ledger row (`user_id`, `tokens_used`, `model`); `get_tokens_consumed`/`get_all_token_totals` Postgres RPCs sum it per-user or for everyone at once. `profiles.tokens_consumed` is legacy and no longer written or read. `require_approved` in `query.py` rejects a query with 403 when `AuthenticatedUser.is_over_budget` (`tokens_consumed >= token_budget`) — checked before any LLM call.
+
+### Admin dashboard
+
+`AdminDashboard.tsx` (opened via the navbar profile menu, admin role only) lists all users with role + usage, handles the pending-access-request approve/deny flow, lets an admin grant a token budget or change a role directly (`/api/auth/set-role/{user_id}`), and shows an aggregate usage summary. All admin routes in `routes/auth.py` are gated by `require_admin` and enforce `max_token_budget_grant` server-side (`_validate_token_budget`) — the cap can't be bypassed by any client.
 
 ### Frontend flow
 

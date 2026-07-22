@@ -1,14 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { BarChart2, Circle, LogOut, ChevronDown, History } from "lucide-react";
+import { Info, LogOut, ChevronDown, History, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import ThesisMark from "./ThesisMark";
 
 interface NavbarProps {
-  backendStatus: "healthy" | "offline" | "checking";
   onToggleHistory?: () => void;
   showHistory?: boolean;
+  /** Opens the "How answers are made" transparency panel (Phase 5). */
+  onShowHowAnswersAreMade?: () => void;
+  /** Opens the admin dashboard (admin role only). */
+  onOpenAdmin?: () => void;
 }
 
-export default function Navbar({ backendStatus, onToggleHistory, showHistory }: NavbarProps) {
+export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersAreMade, onOpenAdmin }: NavbarProps) {
   const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -26,23 +30,20 @@ export default function Navbar({ backendStatus, onToggleHistory, showHistory }: 
     : profile?.role === "approved" ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
     : "text-gray-400 bg-gray-400/10 border-gray-400/20";
   const budgetPct = profile ? Math.min(100, (profile.tokens_consumed / profile.token_budget) * 100) : 0;
+
   return (
     <nav className="flex items-center justify-between px-6 py-3 border-b border-border bg-surface-secondary shrink-0">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 border border-accent/20">
-          <BarChart2 className="w-4 h-4 text-accent" />
-        </div>
-        <div>
-          <span className="text-sm font-semibold text-white tracking-tight">
-            SEC Research Terminal
-          </span>
-          <span className="ml-2 text-xs text-gray-500 font-normal hidden sm:inline">
-            10-K Analysis Platform
+      <div className="flex items-center gap-2.5">
+        <ThesisMark size={30} />
+        <div className="flex items-baseline gap-2.5">
+          <span className="text-[15px] font-semibold text-white tracking-tight">Thesis</span>
+          <span className="text-xs text-gray-500 hidden sm:inline">
+            Company research you can verify
           </span>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {onToggleHistory && (
           <button
             onClick={onToggleHistory}
@@ -56,24 +57,15 @@ export default function Navbar({ backendStatus, onToggleHistory, showHistory }: 
             <History className="w-3.5 h-3.5" />
           </button>
         )}
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-border text-xs text-gray-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-positive animate-pulse" />
-          SEC EDGAR Live
-        </div>
-        <div className="flex items-center gap-1.5 text-xs">
-          <Circle
-            className={`w-2 h-2 fill-current ${
-              backendStatus === "healthy"
-                ? "text-positive"
-                : backendStatus === "checking"
-                  ? "text-warning animate-pulse"
-                  : "text-negative"
-            }`}
-          />
-          <span className="text-gray-400 hidden sm:inline">
-            {backendStatus === "healthy" ? "Connected" : backendStatus === "checking" ? "Connecting" : "Offline"}
-          </span>
-        </div>
+        {onShowHowAnswersAreMade && (
+          <button
+            onClick={onShowHowAnswersAreMade}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-all"
+          >
+            <Info className="w-3 h-3" />
+            How answers are made
+          </button>
+        )}
 
         {/* User avatar menu */}
         {profile && (
@@ -90,7 +82,6 @@ export default function Navbar({ backendStatus, onToggleHistory, showHistory }: 
 
             {open && (
               <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/60 z-50 overflow-hidden">
-                {/* Profile header */}
                 <div className="px-4 py-3 border-b border-border">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-sm font-bold text-accent">
@@ -105,7 +96,6 @@ export default function Navbar({ backendStatus, onToggleHistory, showHistory }: 
                   </div>
                 </div>
 
-                {/* Token budget */}
                 <div className="px-4 py-3 border-b border-border space-y-1.5">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-gray-500">Token Budget</span>
@@ -122,6 +112,16 @@ export default function Navbar({ backendStatus, onToggleHistory, showHistory }: 
                     />
                   </div>
                 </div>
+
+                {/* Admin dashboard entry point */}
+                {profile.role === "admin" && onOpenAdmin && (
+                  <button
+                    onClick={() => { setOpen(false); onOpenAdmin(); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 transition-colors border-b border-border"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Admin Dashboard
+                  </button>
+                )}
 
                 {/* Sign out */}
                 <button

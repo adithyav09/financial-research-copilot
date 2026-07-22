@@ -18,12 +18,21 @@ bearer_scheme = HTTPBearer(auto_error=True)
 
 
 class AuthenticatedUser:
-    """Represents a verified Supabase user with their profile role."""
+    """Represents a verified Supabase user with their profile role and token usage."""
 
-    def __init__(self, user_id: str, email: str, role: str) -> None:
+    def __init__(
+        self,
+        user_id: str,
+        email: str,
+        role: str,
+        token_budget: int = 50000,
+        tokens_consumed: int = 0,
+    ) -> None:
         self.user_id = user_id
         self.email = email
         self.role = role
+        self.token_budget = token_budget
+        self.tokens_consumed = tokens_consumed
 
     @property
     def is_approved(self) -> bool:
@@ -32,6 +41,10 @@ class AuthenticatedUser:
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
+
+    @property
+    def is_over_budget(self) -> bool:
+        return self.tokens_consumed >= self.token_budget
 
 
 async def _verify_token_with_supabase(token: str) -> dict:
@@ -110,6 +123,39 @@ def _load_profile(user_id: str) -> dict:
     return result.data
 
 
+def get_tokens_consumed(user_id: str) -> int:
+    """
+    Sum the user's consumption from the token_usage ledger (the source of truth).
+
+    profiles.token_budget is the cap; token_usage rows are the debits. Returns 0
+    on any failure so a transient error can't spuriously lock a user out — the
+    per-query budget check fails open, and the ledger is authoritative once
+    reachable again.
+    """
+    try:
+        supabase = get_supabase_client()
+        result = supabase.rpc(
+            "get_tokens_consumed", {"p_user_id": str(user_id)}
+        ).execute()
+        return int(result.data or 0)
+    except Exception:
+        return 0
+
+
+def get_all_token_totals() -> dict:
+    """
+    Return {user_id: tokens_consumed} for every user with ledger rows, in one
+    round trip. Used by the admin user list and usage summary so they don't
+    issue a per-user sum. Users with no rows are simply absent (treat as 0).
+    """
+    try:
+        supabase = get_supabase_client()
+        result = supabase.rpc("get_all_token_totals").execute()
+        return {row["user_id"]: int(row["tokens_consumed"] or 0) for row in (result.data or [])}
+    except Exception:
+        return {}
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> AuthenticatedUser:
@@ -129,6 +175,8 @@ async def get_current_user(
         user_id=user_id,
         email=profile.get("email", ""),
         role=profile.get("role", "pending"),
+        token_budget=profile.get("token_budget", 50000),
+        tokens_consumed=get_tokens_consumed(user_id),
     )
 
 

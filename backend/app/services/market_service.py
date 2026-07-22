@@ -130,6 +130,22 @@ async def fetch_market_data(ticker: str) -> Dict:
             "shares_outstanding": _get("sharesOutstanding"),
         }
 
+        # --- 6-month closes for the sidebar sparkline + today's move ---
+        try:
+            hist = t.history(period="6mo", interval="1d")
+            if hist is not None and not hist.empty:
+                closes = hist["Close"].dropna()
+                # Downsample to ~30 points; the sparkline is ~250px wide so more
+                # resolution than that just inflates every /market response.
+                step = max(1, len(closes) // 30)
+                result["price_history"] = [round(float(v), 2) for v in closes.iloc[::step]]
+            prev_close = _get("previousClose")
+            cur = result.get("current_price")
+            if cur and prev_close:
+                result["day_change_percent"] = round((cur - prev_close) / prev_close * 100, 2)
+        except Exception:
+            pass  # sparkline is decoration — never fail market data over it
+
         # --- TTM / most-recent-quarter financials from yfinance ---
         ttm: Dict[str, Optional[str]] = {}
         try:

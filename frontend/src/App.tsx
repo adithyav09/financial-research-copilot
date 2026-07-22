@@ -1,40 +1,87 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
-import ChatPanel from "./components/ChatPanel";
+import ChatPanel, { type CitationRef } from "./components/ChatPanel";
 import ChatHistory from "./components/ChatHistory";
+import FilingViewer from "./components/FilingViewer";
+import FirstRunNotice, { NOTICE_STORAGE_KEY } from "./components/FirstRunNotice";
+import HowAnswersPanel from "./components/HowAnswersPanel";
 import LoginPage from "./components/LoginPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
+import AdminDashboard from "./components/AdminDashboard";
 import { useAuth } from "./context/AuthContext";
 import { api, needsIngestion } from "./api/client";
-import type { AnalysisMode, ChatMessage, MarketData, QueryResponse, XBRLFinancials } from "./types";
+import type { AnalysisMode, ChatMessage, Depth, MarketData, QueryResponse, StatusResponse, XBRLFinancials } from "./types";
 
 type IngestPhase = "idle" | "checking" | "ingesting" | "polling" | "ready" | "error";
 
+interface ViewerState {
+  current: CitationRef;
+  filingCitations: CitationRef[];
+}
+
+/** Cold-start state (design 1j): free hosting naps between visits. */
+export interface EngineState {
+  status: "waking" | "ready" | "offline";
+  elapsed: number;
+}
+
 export default function App() {
   const { session, profile, loading, refreshProfile } = useAuth();
-  const [backendStatus, setBackendStatus] = useState<"healthy" | "offline" | "checking">("checking");
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState<string | null>(null);
-  const [mode, setMode] = useState<AnalysisMode>("value");
+  const [depth, setDepth] = useState<Depth>("analyst");
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>("idle");
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [xbrlData, setXbrlData] = useState<XBRLFinancials | null>(null);
+  const [filingStatus, setFilingStatus] = useState<StatusResponse | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(true);
+  const [view, setView] = useState<"chat" | "admin">("chat");
   const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
+  const [viewer, setViewer] = useState<ViewerState | null>(null);
+  const [showHowAnswers, setShowHowAnswers] = useState(false);
+  const [noticeAcknowledged, setNoticeAcknowledged] = useState<boolean>(
+    () => localStorage.getItem(NOTICE_STORAGE_KEY) === "true"
+  );
+  const [engine, setEngine] = useState<EngineState>({ status: "waking", elapsed: 0 });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
+  // A question typed while the engine was still waking — sent automatically
+  // the moment /health responds (design 1j: "you can type now").
+  const queuedWhileWakingRef = useRef<string | null>(null);
 
+  // Warm-up begins on page load, not on first question: ping /health with
+  // retries so a Render cold start is already underway while the user types.
   useEffect(() => {
-    api
-      .health()
-      .then(() => setBackendStatus("healthy"))
-      .catch(() => setBackendStatus("offline"));
+    let cancelled = false;
+    const started = Date.now();
+    const timer = setInterval(() => {
+      setEngine(e => e.status === "waking" ? { ...e, elapsed: Math.round((Date.now() - started) / 1000) } : e);
+    }, 1000);
+
+    (async () => {
+      while (!cancelled) {
+        try {
+          await api.health();
+          if (!cancelled) setEngine({ status: "ready", elapsed: 0 });
+          return;
+        } catch {
+          // Free-tier cold starts take ~25-60s; give up only after 2 minutes
+          if (Date.now() - started > 120_000) {
+            if (!cancelled) setEngine(e => ({ ...e, status: "offline" }));
+            return;
+          }
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    })();
+
+    return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
   const stopPolling = () => {
@@ -47,6 +94,7 @@ export default function App() {
     content: res.answer,
     citations: res.citations,
     mode: res.mode,
+    structured: res.structured ?? null,
     timestamp: new Date(),
     question,
   });
@@ -59,6 +107,7 @@ export default function App() {
     }).catch(() => {});
     api.xbrl(t).then(setXbrlData).catch(() => {});
     api.status(t).then(s => {
+      setFilingStatus(s ?? null);
       if (s?.status === "ready") {
         setIngestPhase(prev => (prev === "idle" ? "ready" : prev));
         setIngestMessage(`Annual report ready${s.filing_year ? ` · FY${s.filing_year}` : ""}`);
@@ -80,7 +129,9 @@ export default function App() {
     setIngestMessage(null);
     setMarketData(null);
     setXbrlData(null);
+    setFilingStatus(null);
     setStaleInfo(null);
+    setViewer(null);
     stopPolling();
     pendingQuestionRef.current = null;
     if (up) loadTickerData(up);
@@ -92,7 +143,7 @@ export default function App() {
   const submitQuery = async (question: string, t: string, retriedAfterIngest = false) => {
     setIsQuerying(true);
     try {
-      const res = await api.query({ ticker: t, question, mode, session_id: sessionId });
+      const res = await api.query({ ticker: t, question, depth, session_id: sessionId });
       setMessages(prev => [...prev, assistantMessage(res, question)]);
       setIngestPhase("ready");
       refreshProfile().catch(() => {});
@@ -162,8 +213,24 @@ export default function App() {
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(), role: "user", content: question, timestamp: new Date(),
     }]);
+    if (engine.status === "waking") {
+      // Engine still waking — hold the question; the flush effect sends it
+      queuedWhileWakingRef.current = question;
+      return;
+    }
     await submitQuery(question, t);
   };
+
+  // Flush the queued question once the engine wakes
+  useEffect(() => {
+    if (engine.status !== "ready") return;
+    const q = queuedWhileWakingRef.current;
+    if (q && ticker) {
+      queuedWhileWakingRef.current = null;
+      submitQuery(q, ticker);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine.status]);
 
   // Auth gates — checked in order before showing the main app
   if (loading) {
@@ -208,101 +275,135 @@ export default function App() {
     setIngestMessage(null);
     setMarketData(null);
     setXbrlData(null);
+    setFilingStatus(null);
     setStaleInfo(null);
+    setViewer(null);
     stopPolling();
     pendingQuestionRef.current = null;
+  };
+
+  const sessionStats = {
+    questions: messages.filter(m => m.role === "user").length,
+    citations: messages.reduce((n, m) => n + (m.citations?.length ?? 0), 0),
   };
 
   // profile.role === "approved" | "admin" — show the full app
   return (
     <div className="h-screen flex flex-col">
-      <Navbar backendStatus={backendStatus} onToggleHistory={() => setShowHistory(h => !h)} showHistory={showHistory} />
-      <div className="flex items-start gap-2 px-6 py-2 bg-amber-500/15 border-b border-amber-500/40 text-amber-200 text-xs">
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-        <span>
-          This tool provides research assistance based on public SEC filings. Nothing here
-          is investment advice. Always verify information and consult a licensed professional
-          before making investment decisions.
-        </span>
-      </div>
-      <div className="flex flex-1 overflow-hidden">
-        {showHistory && (
-          <div className="w-56 shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
-            <ChatHistory
-              currentSessionId={sessionId}
-              currentTicker={ticker}
-              onNewChat={handleNewChat}
-              onSelectSession={(session) => {
-                setTicker(session.ticker);
-                setIngestPhase("idle");
-                setIngestMessage(null);
-                setMarketData(null);
-                setXbrlData(null);
-                setStaleInfo(null);
-                stopPolling();
-                pendingQuestionRef.current = null;
-                loadTickerData(session.ticker);
-                // Restore Q&A pairs as chat messages, including their saved citations
-                const restored: ChatMessage[] = [];
-                for (const entry of session.entries) {
-                  restored.push({
-                    id: `h-user-${entry.id}`,
-                    role: "user",
-                    content: entry.question,
-                    timestamp: new Date(entry.created_at),
-                  });
-                  if (entry.answer) {
-                    restored.push({
-                      id: `h-asst-${entry.id}`,
-                      role: "assistant",
-                      content: entry.answer,
-                      citations: entry.citations ?? undefined,
-                      mode: entry.mode as AnalysisMode,
-                      timestamp: new Date(entry.created_at),
-                      question: entry.question,
-                    });
-                  }
-                }
-                setMessages(restored);
-                setSessionId(session.session_id);
-              }}
-            />
-          </div>
-        )}
-        <Sidebar
-          ticker={ticker}
-          ingestPhase={ingestPhase}
-          ingestMessage={ingestMessage}
-          marketData={marketData}
-          staleInfo={staleInfo}
-          onReIngest={() => {
-            setStaleInfo(null);
-            setIngestPhase("ingesting");
-            setIngestMessage(`Loading ${ticker}'s newest annual report…`);
-            pendingQuestionRef.current = null;
-            api.ingest({ ticker }).then(() => {
-              setIngestPhase("polling");
-              startPolling(ticker);
-            }).catch((err: unknown) => {
-              const msg = err instanceof Error ? err.message : "Unknown error";
-              setIngestPhase("error");
-              setIngestMessage(`Re-ingest failed: ${msg}`);
-            });
+      {!noticeAcknowledged && (
+        <FirstRunNotice
+          onAcknowledge={() => {
+            localStorage.setItem(NOTICE_STORAGE_KEY, "true");
+            setNoticeAcknowledged(true);
           }}
         />
-        <ChatPanel
-          messages={messages}
-          onSend={handleSend}
-          isLoading={isQuerying || ingestPhase === "ingesting" || ingestPhase === "polling" || ingestPhase === "checking"}
-          ticker={ticker}
-          companyName={companyName}
-          onTickerChange={handleTickerChange}
-          ingestPhase={ingestPhase}
-          mode={mode}
-          onModeChange={(m) => setMode(m as AnalysisMode)}
-          xbrlData={xbrlData}
-        />
-      </div>
+      )}
+      {showHowAnswers && <HowAnswersPanel onClose={() => setShowHowAnswers(false)} />}
+      <Navbar
+        onToggleHistory={() => setShowHistory(h => !h)}
+        showHistory={showHistory}
+        onShowHowAnswersAreMade={() => setShowHowAnswers(true)}
+        onOpenAdmin={() => setView("admin")}
+      />
+      {view === "admin" ? (
+        <AdminDashboard onBack={() => setView("chat")} />
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {showHistory && (
+            <div className="w-[232px] shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
+              <ChatHistory
+                currentSessionId={sessionId}
+                currentTicker={ticker}
+                onNewChat={handleNewChat}
+                onSelectSession={(session) => {
+                  setTicker(session.ticker);
+                  setIngestPhase("idle");
+                  setIngestMessage(null);
+                  setMarketData(null);
+                  setXbrlData(null);
+                  setFilingStatus(null);
+                  setStaleInfo(null);
+                  stopPolling();
+                  pendingQuestionRef.current = null;
+                  loadTickerData(session.ticker);
+                  // Restore Q&A pairs as chat messages, including their saved citations
+                  const restored: ChatMessage[] = [];
+                  for (const entry of session.entries) {
+                    restored.push({
+                      id: `h-user-${entry.id}`,
+                      role: "user",
+                      content: entry.question,
+                      timestamp: new Date(entry.created_at),
+                    });
+                    if (entry.answer) {
+                      restored.push({
+                        id: `h-asst-${entry.id}`,
+                        role: "assistant",
+                        content: entry.answer,
+                        citations: entry.citations ?? undefined,
+                        mode: entry.mode as AnalysisMode,
+                        timestamp: new Date(entry.created_at),
+                        question: entry.question,
+                      });
+                    }
+                  }
+                  setMessages(restored);
+                  setSessionId(session.session_id);
+                }}
+              />
+            </div>
+          )}
+          <Sidebar
+            ticker={ticker}
+            ingestPhase={ingestPhase}
+            ingestMessage={ingestMessage}
+            marketData={marketData}
+            filingStatus={filingStatus}
+            staleInfo={staleInfo}
+            sessionStats={sessionStats}
+            onReIngest={() => {
+              setStaleInfo(null);
+              setIngestPhase("ingesting");
+              setIngestMessage(`Loading ${ticker}'s newest annual report…`);
+              pendingQuestionRef.current = null;
+              api.ingest({ ticker }).then(() => {
+                setIngestPhase("polling");
+                startPolling(ticker);
+              }).catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : "Unknown error";
+                setIngestPhase("error");
+                setIngestMessage(`Re-ingest failed: ${msg}`);
+              });
+            }}
+          />
+          <ChatPanel
+            messages={messages}
+            onSend={handleSend}
+            isLoading={isQuerying || ingestPhase === "ingesting" || ingestPhase === "polling" || ingestPhase === "checking"}
+            ticker={ticker}
+            companyName={companyName}
+            onTickerChange={handleTickerChange}
+            ingestPhase={ingestPhase}
+            depth={depth}
+            onDepthChange={setDepth}
+            xbrlData={xbrlData}
+            onOpenCitation={(current, filingCitations) => setViewer({ current, filingCitations })}
+            engine={engine}
+          />
+          {viewer && viewer.current.citation.chunk_index != null && (
+            <FilingViewer
+              ticker={ticker}
+              companyName={companyName}
+              citation={viewer.current.citation}
+              citationNumber={viewer.current.number}
+              filingCitations={viewer.filingCitations}
+              onNavigate={(citation, number) => setViewer(v => v ? { ...v, current: { citation, number } } : v)}
+              onAskAboutPassage={handleSend}
+              onClose={() => setViewer(null)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

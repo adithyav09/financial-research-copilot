@@ -17,6 +17,11 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
         raise HTTPException(status_code=400, detail="Ticker is required")
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question is required")
+    if user.is_over_budget:
+        raise HTTPException(
+            status_code=403,
+            detail="Token budget exceeded. Contact an admin to request more.",
+        )
 
     start_time = time.time()
 
@@ -44,19 +49,24 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
                 )
 
         # Query the filing
-        result = await query_filing(ticker, request.question, request.mode, user_id=user.user_id)
+        result = await query_filing(
+            ticker, request.question, request.mode,
+            user_id=user.user_id, depth=request.depth,
+        )
         
         # Calculate latency
         latency_ms = int((time.time() - start_time) * 1000)
         
-        # Log to Supabase and update token budget
+        # Log to Supabase and record token consumption
         tokens_used = result.get("tokens_used", 0)
         try:
             supabase = get_supabase_client()
             log_data = {
                 "ticker": ticker,
                 "question": request.question,
-                "mode": request.mode.value,
+                # mode is a free-text column; depth values land here so history
+                # keeps working without a schema migration.
+                "mode": request.depth.value,
                 "answer_length": len(result["answer"]),
                 "citations_count": len(result["citations"]),
                 "citations": [c.model_dump() for c in result["citations"]],
@@ -67,19 +77,25 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
                 "answer": result["answer"],
             }
             try:
-                supabase.table("query_logs").insert(log_data).execute()
+                log_result = supabase.table("query_logs").insert(log_data).execute()
             except Exception:
                 # The citations column may not exist yet (migration pending) — retry
                 # without it so the log row (and token accounting below) still lands.
                 log_data.pop("citations", None)
-                supabase.table("query_logs").insert(log_data).execute()
-            # Atomically increment tokens_consumed in profiles
-            supabase.rpc(
-                "increment_tokens_consumed",
-                {"p_user_id": str(user.user_id), "p_tokens": tokens_used},
-            ).execute()
+                log_result = supabase.table("query_logs").insert(log_data).execute()
+                
+            # Record the ledger row. token_usage is the source of truth for
+            # per-user consumption (summed by the usage bar, admin dashboard, and
+            # the over-budget check), so it must always land after a billable query.
+            query_id = (log_result.data[0]["id"] if log_result.data else None) or request.session_id
+            supabase.table("token_usage").insert({
+                "user_id": str(user.user_id),
+                "query_id": query_id,
+                "tokens_used": tokens_used,
+                "model": result.get("model"),
+            }).execute()
         except Exception as log_error:
-            print(f"Failed to log query/update tokens: {str(log_error)}")
+            print(f"Failed to log query/record token usage: {str(log_error)}")
 
         return QueryResponse(
             answer=result["answer"],
@@ -87,6 +103,7 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
             ticker=ticker,
             citations=result["citations"],
             tokens_used=tokens_used,
+            structured=result.get("structured"),
         )
     except HTTPException:
         raise

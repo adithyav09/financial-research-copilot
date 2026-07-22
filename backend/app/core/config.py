@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = 200
     retrieval_k: int = 5
     fred_api_key: str = ""
+    max_token_budget_grant: int = 200000
 
     class Config:
         env_file = ".env"
