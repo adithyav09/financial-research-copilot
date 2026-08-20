@@ -59,7 +59,8 @@ financial-research-copilot/
 ├── docs/
 │   ├── architecture.md         # System design and data flow
 │   ├── api.md                  # Full API reference
-│   └── deployment.md           # Local, Docker, and production setup
+│   ├── deployment.md           # Local, Docker, and production setup
+│   └── product-guidelines.md   # Canonical scope & governance boundaries
 │
 ├── scripts/
 │   ├── reset_chroma.py         # Wipe all ChromaDB collections
@@ -194,6 +195,7 @@ make test
 - [Architecture & data flow](docs/architecture.md)
 - [API reference](docs/api.md)
 - [Deployment guide](docs/deployment.md)
+- [Product guidelines (scope & governance)](docs/product-guidelines.md)
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 

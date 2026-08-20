@@ -1,5 +1,7 @@
 # Architecture
 
+> For the agent-facing, code-level companion to this document (module map, invariants, gotchas), see [`CLAUDE.md`](../CLAUDE.md).
+
 ## Overview
 
 Financial Research Copilot is a full-stack RAG (Retrieval-Augmented Generation) application that lets users ask plain-English questions about public companies, answered using a combination of:

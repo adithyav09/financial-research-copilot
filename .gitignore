@@ -58,3 +58,6 @@ backend/debug_env.py
 # Added by Braintrust Wizard
 .env.braintrust
 .braintrust.json
+
+# Obsidian per-user editor state (vault notes are tracked; this config is not)
+docs/Thesis - Financial Research RAG Project/.obsidian/
