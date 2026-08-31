@@ -1,13 +1,31 @@
 ---
 type: index
 title: "Wiki Index"
-updated: 2026-08-20
+updated: 2026-08-30
 ---
 
 # Wiki Index
 
 Every article in `03-wiki/`. Maintained by COMPILE, reconciled by LINT. `status`: `stub` → `draft` → `reviewed`.
 
+## Financial-research RAG
+| Article | Type | Status | #Sources | Updated |
+|---------|------|--------|----------|---------|
+| [[financial-document-qa]] | concept | draft | 5 | 2026-08-20 |
+| [[three-phase-rag-pipeline]] | concept | draft | 2 | 2026-08-20 |
+| [[financial-document-chunking]] | technique | draft | 2 | 2026-08-20 |
+| [[hybrid-retrieval]] | technique | draft | 2 | 2026-08-20 |
+| [[reranking]] | technique | draft | 2 | 2026-08-20 |
+| [[embedding-fine-tuning]] | technique | draft | 2 | 2026-08-20 |
+| [[metadata-driven-rag]] | technique | draft | 1 | 2026-08-20 |
+| [[multimodal-financial-rag]] | technique | draft | 1 | 2026-08-20 |
+| [[agentic-rag]] | technique | stub | 1 | 2026-08-20 |
+| [[program-of-thought]] | technique | stub | 1 | 2026-08-20 |
+| [[financial-qa-benchmarks]] | reference | draft | 4 | 2026-08-20 |
+| [[rag-evaluation]] | technique | draft | 1 | 2026-08-30 |
+| [[llm-observability-tracing]] | concept | draft | 1 | 2026-08-30 |
+
+## Claude Code Skills
 | Article | Type | Status | #Sources | Updated |
 |---------|------|--------|----------|---------|
 | [[agent-skills]] | concept | draft | 3 | 2026-08-20 |
@@ -33,4 +51,4 @@ Every article in `03-wiki/`. Maintained by COMPILE, reconciled by LINT. `status`
 | [[hooks]] | concept | stub | 2 | 2026-08-20 |
 | [[claude-md-memory]] | concept | stub | 1 | 2026-08-20 |
 
-**Totals:** 22 articles — 13 draft, 9 stub.
+**Totals:** 33 articles — 22 Claude Code Skills, 11 Financial-research RAG.

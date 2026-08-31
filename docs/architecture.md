@@ -90,3 +90,13 @@ Browser → Supabase Auth (email/password)
 - **10-Q ingested alongside 10-K** in parallel on first ingest; stored as separate ChromaDB collection and Supabase row
 - **ChromaDB on persistent Docker volume** (`chroma_data`) so vectors survive container restarts
 - **User-scoped collections**: `query_filing` filters `ingestion_jobs` by `user_id` to prevent cross-user stale data
+
+## Observability & Evaluation
+
+- **Tracing** (`app/core/tracing.py`): opt-in Arize AX tracing via OpenInference auto-instrumentation of LangChain — `init_tracing()` runs in `main.py` before the first LangChain import, capturing the whole retrieve→generate chain. No-op without credentials.
+- **Evaluation** (`backend/evals/`): an offline harness that runs the real `query_filing()` pipeline over a golden dataset and scores it with RAGAS + custom LLM-as-a-judge metrics, publishing each run to Arize as a versioned experiment. See [`backend/evals/README.md`](../backend/evals/README.md).
+
+> **Thesis notes** — the design rationale, the first measured baseline, and the debugging write-up live in the research vault:
+> [Build log](<Thesis - Financial Research RAG Project/04-outputs/rag-eval-and-observability-buildlog.md>) ·
+> [RAG evaluation](<Thesis - Financial Research RAG Project/03-wiki/rag-evaluation.md>) ·
+> [LLM observability & tracing](<Thesis - Financial Research RAG Project/03-wiki/llm-observability-tracing.md>)
