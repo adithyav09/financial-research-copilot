@@ -56,9 +56,9 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
             }).eq("id", job_id).execute()
             raise HTTPException(status_code=500, detail=f"Failed to fetch 10-K: {str(filing_10k)}")
 
-        # Step 3: Ingest 10-K into the vector store
+        # Step 3: Ingest 10-K into the vector store (chunks tagged with user_id)
         try:
-            chunks_10k = await ingest_filing(ticker, filing_10k)
+            chunks_10k = await ingest_filing(ticker, filing_10k, user.user_id)
         except Exception as e:
             supabase.table("ingestion_jobs").update({
                 "status": "failed", "error_message": str(e)
@@ -70,7 +70,7 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
         tenq_date = ""
         if filing_10q:
             try:
-                chunks_10q = await ingest_filing(ticker, filing_10q)
+                chunks_10q = await ingest_filing(ticker, filing_10q, user.user_id)
                 tenq_date = filing_10q.get("filing_date", "")
                 # Store 10-Q as its own ingestion_job row for status tracking
                 supabase.table("ingestion_jobs").insert({

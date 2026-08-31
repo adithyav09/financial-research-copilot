@@ -213,6 +213,23 @@ def format_docs(docs):
     )
 
 
+def _chunk_filter(ticker: str, filing_type: str, user_id: str | None) -> dict:
+    """Build the jsonb-containment filter for document_chunks retrieval.
+
+    match_document_chunks matches rows where ``metadata @> filter``, so including
+    ``user_id`` here scopes vector search to the caller's own chunks — the single
+    source of per-user isolation on the retrieval path (the backend's service-role
+    key bypasses RLS). ``user_id`` must come from the authenticated session, never
+    from client input. It is always present on the API path (require_approved); the
+    only caller that may pass None is the offline eval harness, which runs on a
+    single owner's data.
+    """
+    flt = {"ticker": ticker.upper(), "filing_type": filing_type}
+    if user_id:
+        flt["user_id"] = str(user_id)
+    return flt
+
+
 def _format_market_context(ticker: str, market: dict | None, xbrl: dict | None) -> str:
     """Build a concise live-data context block to prepend to the RAG context."""
     lines = [f"=== Live Market & Financial Data for {ticker} ==="]
@@ -403,7 +420,7 @@ async def query_filing(
                 search_type="similarity",
                 search_kwargs={
                     "k": settings.retrieval_k,
-                    "filter": {"ticker": ticker.upper(), "filing_type": "10-K"},
+                    "filter": _chunk_filter(ticker, "10-K", user_id),
                 }
             )
             retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
@@ -414,7 +431,7 @@ async def query_filing(
                         search_type="similarity",
                         search_kwargs={
                             "k": max(2, settings.retrieval_k // 2),
-                            "filter": {"ticker": ticker.upper(), "filing_type": "10-Q"},
+                            "filter": _chunk_filter(ticker, "10-Q", user_id),
                         }
                     )
                     tenq_retriever = MultiQueryRetriever.from_llm(retriever=tenq_base, llm=llm)

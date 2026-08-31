@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException
 from typing import List, Optional
-import httpx
 
-from app.models.schemas import StatusResponse
-from app.core.database import get_supabase_client
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.core.auth import AuthenticatedUser, require_approved
 from app.core.config import settings
+from app.core.database import get_supabase_client
+from app.models.schemas import StatusResponse
 
 
 async def _fetch_latest_sec_year(ticker: str) -> Optional[int]:
@@ -39,14 +41,30 @@ router = APIRouter()
 
 
 @router.get("/status/{ticker}", response_model=StatusResponse)
-async def get_ticker_status(ticker: str):
-    """Get the most recent ingestion status for a specific ticker."""
+async def get_ticker_status(
+    ticker: str, user: AuthenticatedUser = Depends(require_approved)
+):
+    """Get the requesting user's most recent ingestion status for a ticker.
+
+    Scoped to the caller (user_id) so it reports only what THIS user has ingested
+    — the same scope the /query guard and query_filing use. A global status would
+    report another user's ingestion as ready and disagree with what the user can
+    actually query (409 needs_ingestion).
+    """
     ticker = ticker.strip().upper()
-    
+
     try:
         supabase = get_supabase_client()
-        response = supabase.table("ingestion_jobs").select("*").eq("ticker", ticker).order("created_at", desc=True).limit(1).execute()
-        
+        response = (
+            supabase.table("ingestion_jobs")
+            .select("*")
+            .eq("ticker", ticker)
+            .eq("user_id", user.user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
         if not response.data:
             raise HTTPException(status_code=404, detail=f"No ingestion jobs found for ticker {ticker}")
         
@@ -79,11 +97,17 @@ async def get_ticker_status(ticker: str):
 
 
 @router.get("/status", response_model=List[StatusResponse])
-async def get_all_status():
-    """Get all ingestion jobs status."""
+async def get_all_status(user: AuthenticatedUser = Depends(require_approved)):
+    """Get all ingestion jobs for the requesting user (scoped to user_id)."""
     try:
         supabase = get_supabase_client()
-        response = supabase.table("ingestion_jobs").select("*").order("created_at", desc=True).execute()
+        response = (
+            supabase.table("ingestion_jobs")
+            .select("*")
+            .eq("user_id", user.user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
         
         if not response.data:
             return []

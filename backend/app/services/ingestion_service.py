@@ -26,17 +26,26 @@ from app.core.database import get_supabase_client
 # ============================================================
 
 
-async def ingest_filing(ticker: str, filing_data: dict) -> int:
+async def ingest_filing(ticker: str, filing_data: dict, user_id: str) -> int:
     """
     Process filing content and store embeddings in Supabase pgvector.
 
     Args:
         ticker: Company ticker symbol
         filing_data: Dictionary with filing metadata and content
+        user_id: Authenticated owner of these chunks. Stamped into every chunk's
+            metadata so retrieval can be scoped per user (the backend uses the
+            service-role key, which bypasses RLS, so this app-layer tag is the
+            actual isolation boundary). Must come from the verified session, never
+            from client-supplied input.
 
     Returns:
         Number of chunks processed and stored
     """
+    if not user_id:
+        # Refuse to write unscoped chunks — an un-owned chunk would be visible to
+        # every user's (ticker, filing_type) filter and leak across accounts.
+        raise ValueError("ingest_filing requires a user_id to scope stored chunks")
     try:
         # Extract filing data
         content = filing_data["content"]
@@ -61,6 +70,7 @@ async def ingest_filing(ticker: str, filing_data: dict) -> int:
         documents = []
         for i, chunk in enumerate(chunks):
             metadata = {
+                "user_id": str(user_id),
                 "ticker": ticker_upper,
                 "filing_type": filing_type,
                 "filing_year": filing_year,
@@ -79,10 +89,15 @@ async def ingest_filing(ticker: str, filing_data: dict) -> int:
 
         supabase = get_supabase_client()
 
-        # Delete any previously ingested chunks for this ticker + filing type (idempotent)
+        # Delete any previously ingested chunks for THIS user + ticker + filing type
+        # (idempotent re-ingest). Scoped by user_id so re-ingesting a ticker only
+        # replaces the caller's own chunks — never another user's (a global delete
+        # here would let one user wipe another's ingested filings).
         supabase.table("document_chunks").delete().eq(
-            "metadata->>ticker", ticker_upper
-        ).eq("metadata->>filing_type", filing_type).execute()
+            "metadata->>user_id", str(user_id)
+        ).eq("metadata->>ticker", ticker_upper).eq(
+            "metadata->>filing_type", filing_type
+        ).execute()
 
         vectorstore = SupabaseVectorStore(
             client=supabase,
