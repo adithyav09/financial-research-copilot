@@ -2,6 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+   Editorial/research design tokens ("annotated primary source").
+   Light-default on :root; the .editorial-dark scope re-declares them dark and,
+   because CSS custom properties cascade, applies to every descendant — so a
+   surface opts into dark by wrapping itself in .editorial-dark, no globals.
+   The legacy dark app (bg-surface / text-gray-*) is unaffected: it doesn't
+   reference these variables.
+--------------------------------------------------------------------------- */
+:root {
+  --paper: #f3f4f2;          /* cool archival paper (green-grey, not warm cream) */
+  --paper-raised: #fbfbf9;
+  --ink: #16181c;            /* cool near-black */
+  --ink-soft: #4c515a;
+  --ink-faint: #7e838c;
+  --rule: #d6d9d2;           /* hairline statement rule */
+  --rule-strong: #b9bdb4;
+  --accent-ink: #24406b;     /* signature ink-blue — provenance */
+  --accent-ink-soft: #e4e9f1;
+  --stamp: #a3341f;          /* oxidized filing-stamp red, used sparingly */
+  --ledger-pos: #2e6b4f;
+  --ledger-neg: #a3341f;
+  --hl: #fbe9a733;           /* highlighter wash for cited passages */
+  --hl-edge: #e4c64f;
+}
+
+.editorial-dark {
+  --paper: #14161a;          /* microfiche near-black, cool */
+  --paper-raised: #1b1e23;
+  --ink: #e8e9e4;
+  --ink-soft: #a7abb2;
+  --ink-faint: #767b84;
+  --rule: #2a2e35;
+  --rule-strong: #3a3f48;
+  --accent-ink: #8ab0e0;     /* ink-blue lifted for a dark ground */
+  --accent-ink-soft: #1e2a3d;
+  --stamp: #d8694e;
+  --ledger-pos: #5fb88e;
+  --ledger-neg: #d8694e;
+  --hl: #c9a93322;
+  --hl-edge: #a9862e;
+}
+
+@layer components {
+  /* Small-caps mono eyebrow used across editorial surfaces. */
+  .eyebrow {
+    @apply font-mono uppercase text-ink-faint;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+  }
+  /* Cited-passage highlight (the "highlighter" mark on a filing). */
+  .hl-mark {
+    background: var(--hl);
+    box-shadow: inset 0 -2px 0 var(--hl-edge);
+    color: var(--ink);
+    padding: 1px 0;
+  }
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -12,10 +70,10 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1d2e;
+  background: var(--paper);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3a3d4e;
+  background: var(--rule-strong);
   border-radius: 3px;
 }

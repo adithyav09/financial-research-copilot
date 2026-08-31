@@ -46,47 +46,47 @@ export default function RequestAccessPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center px-4">
+      <div className="min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center space-y-4">
           <CheckCircle className="w-12 h-12 text-green-400 mx-auto" />
-          <h2 className="text-lg font-semibold text-white">Request submitted</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-lg font-semibold text-ink">Request submitted</h2>
+          <p className="text-sm text-ink-soft">
             You'll be notified when your access is approved. This is typically same-day.
           </p>
-          <p className="text-xs text-gray-600">You're signed in as {user?.email}</p>
+          <p className="text-xs text-ink-faint">You're signed in as {user?.email}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4">
+    <div className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-accent/10 border border-accent/20 mx-auto">
-            <BarChart2 className="w-6 h-6 text-accent" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-accent-ink-soft border border-accent-ink mx-auto">
+            <BarChart2 className="w-6 h-6 text-accent-ink" />
           </div>
-          <h1 className="text-xl font-bold text-white">Request Access</h1>
-          <p className="text-sm text-gray-400">
-            Signed in as <span className="text-gray-300">{user?.email}</span>
+          <h1 className="text-xl font-bold text-ink">Request Access</h1>
+          <p className="text-sm text-ink-soft">
+            Signed in as <span className="text-ink">{user?.email}</span>
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">I am a</label>
+            <label className="block text-xs font-medium text-ink-soft mb-1.5">I am a</label>
             <select
               value={investorType}
               onChange={(e) => setInvestorType(e.target.value)}
-              className="w-full px-3 py-2.5 bg-surface-secondary border border-border rounded-lg text-sm text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2.5 bg-paper-raised border border-rule rounded-lg text-sm text-ink focus:outline-none focus:border-accent-ink"
             >
               {INVESTOR_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">
-              How will you use this tool? <span className="text-gray-600">(brief description)</span>
+            <label className="block text-xs font-medium text-ink-soft mb-1.5">
+              How will you use this tool? <span className="text-ink-faint">(brief description)</span>
             </label>
             <textarea
               value={useCase}
@@ -94,16 +94,16 @@ export default function RequestAccessPage() {
               rows={3}
               placeholder="e.g. Research semiconductor companies before earnings…"
               required
-              className="w-full px-3 py-2.5 bg-surface-secondary border border-border rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent resize-none"
+              className="w-full px-3 py-2.5 bg-paper-raised border border-rule rounded-lg text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink resize-none"
             />
           </div>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-ledger-neg">{error}</p>}
 
           <button
             type="submit"
             disabled={submitting || !useCase.trim()}
-            className="w-full py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-all"
+            className="w-full py-2.5 bg-accent-ink hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-paper transition-all"
           >
             {submitting ? "Submitting…" : "Submit request"}
           </button>
@@ -111,7 +111,7 @@ export default function RequestAccessPage() {
 
         <button
           onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 text-xs text-gray-600 hover:text-gray-400 transition-colors"
+          className="w-full flex items-center justify-center gap-2 text-xs text-ink-faint hover:text-ink-soft transition-colors"
         >
           <LogOut className="w-3 h-3" /> Sign out
         </button>

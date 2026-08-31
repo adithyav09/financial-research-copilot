@@ -8,6 +8,7 @@ import FilingViewer from "./components/FilingViewer";
 import FirstRunNotice, { NOTICE_STORAGE_KEY } from "./components/FirstRunNotice";
 import HowAnswersPanel from "./components/HowAnswersPanel";
 import LoginPage from "./components/LoginPage";
+import LandingPage from "./components/LandingPage";
 import PendingApprovalPage from "./components/PendingApprovalPage";
 import AdminDashboard from "./components/AdminDashboard";
 import { useAuth } from "./context/AuthContext";
@@ -42,6 +43,7 @@ export default function App() {
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [showHistory, setShowHistory] = useState(true);
   const [view, setView] = useState<"chat" | "admin">("chat");
+  const [authView, setAuthView] = useState<"landing" | "login">("landing");
   const [staleInfo, setStaleInfo] = useState<{ ingestedYear: number; latestYear: number } | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [showHowAnswers, setShowHowAnswers] = useState(false);
@@ -235,18 +237,22 @@ export default function App() {
   // Auth gates — checked in order before showing the main app
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-accent-ink" />
       </div>
     );
   }
 
-  if (!session) return <LoginPage />;
+  if (!session) {
+    return authView === "landing"
+      ? <LandingPage onGetStarted={() => setAuthView("login")} />
+      : <LoginPage onBack={() => setAuthView("landing")} />;
+  }
 
   if (session && !profile) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-accent-ink" />
       </div>
     );
   }
@@ -257,10 +263,10 @@ export default function App() {
 
   if (profile?.role === "denied") {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center px-4">
+      <div className="min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="text-center space-y-3">
-          <p className="text-white font-semibold">Access denied</p>
-          <p className="text-sm text-gray-400">Your access request was not approved.</p>
+          <p className="text-ink font-semibold">Access denied</p>
+          <p className="text-sm text-ink-soft">Your access request was not approved.</p>
         </div>
       </div>
     );
@@ -310,7 +316,7 @@ export default function App() {
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {showHistory && (
-            <div className="w-[232px] shrink-0 border-r border-border bg-surface-secondary flex flex-col overflow-hidden">
+            <div className="w-[232px] shrink-0 border-r border-rule bg-paper-raised flex flex-col overflow-hidden">
               <ChatHistory
                 currentSessionId={sessionId}
                 currentTicker={ticker}

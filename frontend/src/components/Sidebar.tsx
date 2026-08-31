@@ -70,28 +70,28 @@ export default function Sidebar({
   ] : [];
 
   return (
-    <aside className="w-[280px] border-r border-border bg-surface-secondary flex flex-col shrink-0">
+    <aside className="w-[280px] border-r border-rule bg-paper-raised flex flex-col shrink-0">
       <div className="flex-1 overflow-y-auto">
 
         {!ticker && (
           <div className="p-4">
-            <p className="text-[11px] text-gray-500">Search a company in the chat box to begin.</p>
+            <p className="text-[11px] text-ink-soft">Search a company in the chat box to begin.</p>
           </div>
         )}
 
         {/* Company header — name, price, day move, 6-month sparkline */}
         {ticker && (
-          <div className="p-4 border-b border-border">
+          <div className="p-4 border-b border-rule">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-surface-tertiary border border-[#2a2f3c] flex items-center justify-center font-mono text-sm font-bold text-gray-200 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-paper-raised border border-rule-strong flex items-center justify-center font-mono text-sm font-bold text-ink shrink-0">
                 {ticker[0]}
               </div>
               <div className="min-w-0">
-                <p className="text-[13.5px] font-semibold text-white leading-tight truncate">
+                <p className="text-[13.5px] font-semibold text-ink leading-tight truncate">
                   {m?.company_name ?? ticker}
                 </p>
-                <p className="text-[11px] text-gray-500 truncate">
-                  <span className="font-mono text-gray-400">{ticker}</span>
+                <p className="text-[11px] text-ink-soft truncate">
+                  <span className="font-mono text-ink-soft">{ticker}</span>
                   {m?.sector && <> · {m.sector}</>}
                 </p>
               </div>
@@ -99,11 +99,11 @@ export default function Sidebar({
 
             {m?.current_price && (
               <div className="flex items-baseline gap-2 mt-3.5">
-                <span className="font-mono text-[22px] font-bold text-white">
+                <span className="font-mono text-[22px] font-bold text-ink">
                   ${m.current_price.toFixed(2)}
                 </span>
                 {change != null && (
-                  <span className={`flex items-center gap-1 font-mono text-xs ${change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  <span className={`flex items-center gap-1 font-mono text-xs ${change >= 0 ? "text-ledger-pos" : "text-ledger-neg"}`}>
                     {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                     {change >= 0 ? "+" : ""}{change.toFixed(1)}% today
                   </span>
@@ -112,20 +112,20 @@ export default function Sidebar({
             )}
             {m?.price_history && <PriceSparkline values={m.price_history} />}
             {m?.price_history && (
-              <p className="mt-1.5 text-[10px] text-gray-600">6 months · Yahoo Finance · delayed 15 min</p>
+              <p className="mt-1.5 text-[10px] text-ink-faint">6 months · Yahoo Finance · delayed 15 min</p>
             )}
           </div>
         )}
 
         {/* Key figures */}
         {ticker && m && keyFigures.some(([, v]) => v) && (
-          <div className="px-4 py-3.5 border-b border-border">
-            <p className="mb-2 text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">Key figures</p>
+          <div className="px-4 py-3.5 border-b border-rule">
+            <p className="mb-2 text-[10.5px] font-semibold text-ink-soft uppercase tracking-[.13em]">Key figures</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               {keyFigures.filter(([, v]) => v).map(([label, val]) => (
                 <div key={label} className="flex justify-between py-0.5">
-                  <span className="text-[11px] text-gray-500">{label}</span>
-                  <span className="text-[11px] text-gray-200 font-mono">{val}</span>
+                  <span className="text-[11px] text-ink-soft">{label}</span>
+                  <span className="text-[11px] text-ink font-mono">{val}</span>
                 </div>
               ))}
             </div>
@@ -134,48 +134,48 @@ export default function Sidebar({
 
         {/* Filings on file */}
         {ticker && (
-          <div className="px-4 py-3.5 border-b border-border space-y-2">
-            <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">Filings on file</p>
+          <div className="px-4 py-3.5 border-b border-rule space-y-2">
+            <p className="text-[10.5px] font-semibold text-ink-soft uppercase tracking-[.13em]">Filings on file</p>
 
             {filingStatus?.status === "ready" && (
-              <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-surface border border-border">
-                <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-paper border border-rule">
+                <FileText className="w-3.5 h-3.5 text-ink-soft shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-200 font-medium">
+                  <p className="text-xs text-ink font-medium">
                     {filingStatus.filing_type ?? "10-K"}{filingStatus.filing_year ? ` · FY${filingStatus.filing_year}` : ""}
                   </p>
-                  <p className="text-[10px] text-gray-600">
+                  <p className="text-[10px] text-ink-faint">
                     {filingStatus.filing_date ? `Filed ${filingStatus.filing_date} · ` : ""}indexed
                   </p>
                 </div>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-ledger-pos shrink-0" />
               </div>
             )}
 
             {isLoading && (
-              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-blue-500/5 border-blue-500/20 text-blue-300">
+              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-blue-500/5 border-blue-500/20 text-accent-ink">
                 <Loader2 className="w-3.5 h-3.5 mt-0.5 shrink-0 animate-spin" />
                 <span className="leading-relaxed">{ingestMessage ?? "Loading the annual report…"}</span>
               </div>
             )}
 
             {ingestPhase === "idle" && filingStatus?.status !== "ready" && (
-              <p className="text-[11px] text-gray-600 leading-relaxed">
+              <p className="text-[11px] text-ink-faint leading-relaxed">
                 Filings load automatically the first time you ask a question about the annual report.
               </p>
             )}
 
             {staleInfo && ingestPhase === "ready" && (
-              <div className="flex flex-col gap-2 rounded-lg px-2.5 py-2 text-xs border bg-amber-500/5 border-amber-500/20 text-amber-300">
+              <div className="flex flex-col gap-2 rounded-lg px-2.5 py-2 text-xs border bg-amber-500/5 border-amber-500/20 text-stamp">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400" />
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-stamp" />
                   <span className="leading-relaxed">
                     You're reading the <strong>{staleInfo.ingestedYear}</strong> report. The <strong>{staleInfo.latestYear}</strong> filing is now available.
                   </span>
                 </div>
                 <button
                   onClick={onReIngest}
-                  className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-medium transition-all"
+                  className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-stamp font-medium transition-all"
                 >
                   <RefreshCw className="w-3 h-3" />
                   Load the {staleInfo.latestYear} report
@@ -184,14 +184,14 @@ export default function Sidebar({
             )}
 
             {ingestPhase === "error" && ingestMessage && (
-              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-red-500/5 border-red-500/20 text-red-400">
+              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-red-500/5 border-red-500/20 text-ledger-neg">
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span className="leading-relaxed">{ingestMessage}</span>
               </div>
             )}
 
             {filingStatus?.status === "ready" && (
-              <p className="text-[10px] text-gray-600">Latest available on SEC EDGAR</p>
+              <p className="text-[10px] text-ink-faint">Latest available on SEC EDGAR</p>
             )}
           </div>
         )}
@@ -199,8 +199,8 @@ export default function Sidebar({
         {/* This session */}
         {ticker && sessionStats && sessionStats.questions > 0 && (
           <div className="px-4 py-3.5">
-            <p className="mb-2 text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">This session</p>
-            <p className="text-[11px] text-gray-500 leading-relaxed">
+            <p className="mb-2 text-[10.5px] font-semibold text-ink-soft uppercase tracking-[.13em]">This session</p>
+            <p className="text-[11px] text-ink-soft leading-relaxed">
               {sessionStats.questions} question{sessionStats.questions !== 1 ? "s" : ""} · {sessionStats.citations} passage{sessionStats.citations !== 1 ? "s" : ""} cited
               <br />
               Answers grounded in SEC filings + live quotes

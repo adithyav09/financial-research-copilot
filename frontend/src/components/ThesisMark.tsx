@@ -7,7 +7,7 @@ export default function ThesisMark({ size = 30 }: { size?: number }) {
   const icon = Math.round(size / 2);
   return (
     <div
-      className="flex items-center justify-center rounded-lg bg-accent/10 border border-accent/25 shrink-0"
+      className="flex items-center justify-center rounded-lg bg-accent-ink-soft border border-accent-ink text-accent-ink shrink-0"
       style={{ width: size, height: size }}
     >
       <svg
@@ -15,7 +15,7 @@ export default function ThesisMark({ size = 30 }: { size?: number }) {
         height={icon}
         viewBox="0 0 24 24"
         fill="none"
-        stroke="#60a5fa"
+        stroke="currentColor"
         strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"

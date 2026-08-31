@@ -42,30 +42,30 @@ export default function HowAnswersPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-end bg-black/50" onClick={onClose}>
       <div
-        className="w-[460px] max-w-full h-full overflow-y-auto bg-surface-secondary border-l border-border px-6 py-5"
+        className="w-[460px] max-w-full h-full overflow-y-auto bg-paper-raised border-l border-rule px-6 py-5"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-[15px] font-semibold text-white tracking-tight">How answers are made</h3>
-          <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-200 transition-colors" title="Close (esc)">
+          <h3 className="text-[15px] font-semibold text-ink tracking-tight">How answers are made</h3>
+          <button onClick={onClose} className="p-1 text-ink-soft hover:text-ink transition-colors" title="Close (esc)">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <p className="mb-4 text-xs text-gray-500">The full pipeline, nothing hidden.</p>
+        <p className="mb-4 text-xs text-ink-soft">The full pipeline, nothing hidden.</p>
 
         {/* Pipeline steps */}
         <div className="flex flex-col">
           {STEPS.map((step, i) => (
             <div key={step.title} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className="w-[22px] h-[22px] rounded-full bg-accent/15 border border-accent/35 text-accent-hover text-[10.5px] font-bold flex items-center justify-center shrink-0">
+                <div className="w-[22px] h-[22px] rounded-full bg-accent-ink-soft border border-accent-ink text-accent-ink text-[10.5px] font-bold flex items-center justify-center shrink-0">
                   {i + 1}
                 </div>
-                {i < STEPS.length - 1 && <div className="w-px flex-1 bg-border my-1" />}
+                {i < STEPS.length - 1 && <div className="w-px flex-1 bg-rule my-1" />}
               </div>
               <div className={i < STEPS.length - 1 ? "pb-4" : ""}>
-                <p className="text-[12.5px] font-semibold text-gray-200">{step.title}</p>
-                <p className="mt-0.5 text-[11.5px] text-gray-400 leading-relaxed">{step.body}</p>
+                <p className="text-[12.5px] font-semibold text-ink">{step.title}</p>
+                <p className="mt-0.5 text-[11.5px] text-ink-soft leading-relaxed">{step.body}</p>
               </div>
             </div>
           ))}
@@ -74,14 +74,14 @@ export default function HowAnswersPanel({ onClose }: { onClose: () => void }) {
         {/* Honest-limits grid */}
         <div className="grid grid-cols-2 gap-2 mt-5">
           {FACTS.map(([label, body]) => (
-            <div key={label} className="rounded-lg border border-border bg-surface px-3 py-2.5">
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</p>
-              <p className="mt-1 text-[11px] text-gray-400 leading-relaxed">{body}</p>
+            <div key={label} className="rounded-lg border border-rule bg-paper px-3 py-2.5">
+              <p className="text-[10px] font-bold text-ink-soft uppercase tracking-wider">{label}</p>
+              <p className="mt-1 text-[11px] text-ink-soft leading-relaxed">{body}</p>
             </div>
           ))}
         </div>
 
-        <p className="mt-4 text-[11px] text-gray-600 text-center">
+        <p className="mt-4 text-[11px] text-ink-faint text-center">
           Data sources: SEC EDGAR · Yahoo Finance · OpenAI API
         </p>
       </div>
