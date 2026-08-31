@@ -17,8 +17,15 @@ import json
 from app.models.schemas import AnalysisMode, Citation, Depth, StructuredAnswer
 from app.core.config import settings
 from app.core.database import get_supabase_client
+from app.core import observability as obs
 from app.services.market_service import fetch_market_data
 from app.services.xbrl_service import fetch_xbrl_financials
+
+
+# Bump when the prompt contract (system prompts, structured-output shape, citation
+# rules) changes — stamped on model-call events so answers can be attributed to a
+# prompt revision when comparing quality over time.
+PROMPT_VERSION = "2025-08-thesis-structured-v1"
 
 
 DISCLAIMER = (
@@ -230,6 +237,21 @@ def _chunk_filter(ticker: str, filing_type: str, user_id: str | None) -> dict:
     return flt
 
 
+def _document_ids(docs) -> list[str]:
+    """Stable, non-sensitive ids for retrieved chunks (for observability logs).
+
+    Identifies each chunk by filing + position so a trace can be tied back to the
+    exact passages retrieved, without logging chunk text.
+    """
+    ids = []
+    for i, doc in enumerate(docs):
+        md = getattr(doc, "metadata", None) or {}
+        ft = md.get("filing_type", "10-K")
+        ci = md.get("chunk_index")
+        ids.append(f"{ft}:{ci}" if ci is not None else f"{ft}:idx{i}")
+    return ids
+
+
 def _format_market_context(ticker: str, market: dict | None, xbrl: dict | None) -> str:
     """Build a concise live-data context block to prepend to the RAG context."""
     lines = [f"=== Live Market & Financial Data for {ticker} ==="]
@@ -438,17 +460,22 @@ async def query_filing(
                 except Exception:
                     tenq_retriever = None
 
-        # Step 5: Fetch live market + XBRL data (best-effort, never fail the query)
+        # Step 5: Fetch live market + XBRL data (best-effort, never fail the query).
+        # Each source is a "tool call": the stage() emits tool_call_started/completed,
+        # and on failure tool_call_failed + a tool-failure metric — but we swallow the
+        # error to preserve best-effort semantics (a query never fails on live data).
         market_data = None
         xbrl_data = None
         try:
-            market_data = await fetch_market_data(ticker)
+            with obs.stage("tool_call", component="tools", tool="market_data"):
+                market_data = await fetch_market_data(ticker)
         except Exception:
-            pass
+            obs.record_tool_failure("market_data")
         try:
-            xbrl_data = await fetch_xbrl_financials(ticker)
+            with obs.stage("tool_call", component="tools", tool="xbrl_financials"):
+                xbrl_data = await fetch_xbrl_financials(ticker)
         except Exception:
-            pass
+            obs.record_tool_failure("xbrl_financials")
 
         live_context = _format_market_context(ticker, market_data, xbrl_data)
 
@@ -501,15 +528,18 @@ async def query_filing(
             ])
 
             # Step 7: Retrieve docs from 10-K + 10-Q
-            retrieved_docs = await retriever.ainvoke(question)
-            if tenq_retriever:
-                try:
-                    tenq_docs = await tenq_retriever.ainvoke(question)
-                    seen_content = {d.page_content[:100] for d in retrieved_docs}
-                    new_tenq = [d for d in tenq_docs if d.page_content[:100] not in seen_content]
-                    retrieved_docs = new_tenq + retrieved_docs
-                except Exception:
-                    pass
+            with obs.stage("retrieval", component="retrieval") as rstage:
+                retrieved_docs = await retriever.ainvoke(question)
+                if tenq_retriever:
+                    try:
+                        tenq_docs = await tenq_retriever.ainvoke(question)
+                        seen_content = {d.page_content[:100] for d in retrieved_docs}
+                        new_tenq = [d for d in tenq_docs if d.page_content[:100] not in seen_content]
+                        retrieved_docs = new_tenq + retrieved_docs
+                    except Exception:
+                        obs.record_retry("tenq_retrieval")
+                rstage["retrieved_document_ids"] = _document_ids(retrieved_docs)
+                rstage["retrieved_chunk_count"] = len(retrieved_docs)
 
             context_str = format_docs(retrieved_docs)
             prompt_value = await filing_prompt.ainvoke({
@@ -523,13 +553,40 @@ async def query_filing(
         # JSON mode makes the structured reply near-deterministic, but some
         # models reject the response_format kwarg — fall back to a plain call;
         # the prompt still asks for JSON and the parser tolerates failure.
-        try:
-            llm_response = await llm.bind(
-                response_format={"type": "json_object"}
-            ).ainvoke(prompt_value)
-        except Exception:
-            llm_response = await llm.ainvoke(prompt_value)
-        raw_answer = llm_response.content
+        with obs.stage(
+            "model_call",
+            component="model",
+            model=settings.llm_model,
+            prompt_version=PROMPT_VERSION,
+            path="live" if is_live else "filing",
+        ) as mstage:
+            try:
+                llm_response = await llm.bind(
+                    response_format={"type": "json_object"}
+                ).ainvoke(prompt_value)
+            except Exception:
+                obs.record_retry("llm_json_mode_fallback")
+                llm_response = await llm.ainvoke(prompt_value)
+            raw_answer = llm_response.content
+
+            # Extract actual token counts from response metadata
+            usage = getattr(llm_response, "usage_metadata", None) or {}
+            input_tokens = usage.get("input_tokens", 0) or 0
+            output_tokens = usage.get("output_tokens", 0) or 0
+            tokens_used = (
+                usage.get("total_tokens")
+                or input_tokens + output_tokens
+                or max(len(raw_answer) // 4, 1)
+            )
+            estimated_cost_usd = obs.record_model_usage(
+                settings.llm_model, input_tokens, output_tokens
+            )
+            mstage.update({
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": tokens_used,
+                "estimated_cost_usd": estimated_cost_usd,
+            })
 
         structured = _parse_structured_answer(raw_answer)
         if structured:
@@ -538,14 +595,6 @@ async def query_filing(
             answer = f"**{structured.takeaway}**\n\n{structured.narrative}"
         else:
             answer = raw_answer
-
-        # Extract actual token counts from response metadata
-        usage = getattr(llm_response, "usage_metadata", None) or {}
-        tokens_used = (
-            usage.get("total_tokens")
-            or usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
-            or max(len(answer) // 4, 1)
-        )
 
         citations = []
 
@@ -630,13 +679,30 @@ async def query_filing(
                     filing_type=filing_type,
                 ))
 
+        obs.log_event(
+            "answer_generated",
+            component="rag",
+            success=True,
+            path="live" if is_live else "filing",
+            model=settings.llm_model,
+            prompt_version=PROMPT_VERSION,
+            tokens_used=tokens_used,
+            citation_count=len(citations),
+            retrieved_chunk_count=len(retrieved_docs),
+            structured=structured is not None,
+        )
+
         return {
             "answer": answer,
             "citations": citations,
             "tokens_used": tokens_used,
             "structured": structured,
             "model": settings.llm_model,
+            "trace_id": obs.get_trace_id(),
+            # Full retrieved-chunk texts (untruncated) for offline eval harnesses
+            # (RAGAS "contexts"). The API route ignores this key; only eval/ reads it.
+            "contexts": [d.page_content for d in retrieved_docs],
         }
-        
+
     except Exception as e:
         raise Exception(f"Failed to query filing for {ticker}: {str(e)}")

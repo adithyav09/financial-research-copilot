@@ -268,13 +268,34 @@ export default function ChatPanel({ messages, onSend, isLoading, ticker, company
                         rel="noopener noreferrer"
                         className={chipClass}
                       >
-                        <span className="font-mono font-bold text-accent-hover shrink-0">{i + 1}</span>
+                        <span className="font-mono font-bold text-accent-ink shrink-0">{i + 1}</span>
                         <span className="truncate">{c.source}</span>
                       </a>
                     );
                   })}
-                  <span className="text-[10.5px] text-gray-600 ml-1">Click a filing source to read the passage here</span>
+                  <span className="text-[10.5px] text-ink-faint ml-1">Click a filing source to read the passage here</span>
                 </div>
+              )}
+
+              {/* Debug details — trace id so a shown answer maps to backend logs.
+                  Collapsed by default; click the id to copy it. Non-intrusive. */}
+              {msg.traceId && (
+                <details className="text-[10.5px] text-ink-faint">
+                  <summary className="cursor-pointer select-none hover:text-ink-soft transition-colors">
+                    Details
+                  </summary>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="uppercase tracking-wider">Trace</span>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(msg.traceId ?? "")}
+                      title="Click to copy — match this answer to backend logs (X-Trace-Id)"
+                      className="font-mono text-ink-soft hover:text-accent-ink transition-colors"
+                    >
+                      {msg.traceId}
+                    </button>
+                  </div>
+                </details>
               )}
 
               {/* On-demand chart builder under the latest answer (no keyword guessing) */}

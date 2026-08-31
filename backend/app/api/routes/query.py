@@ -104,6 +104,7 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
             citations=result["citations"],
             tokens_used=tokens_used,
             structured=result.get("structured"),
+            trace_id=result.get("trace_id"),
         )
     except HTTPException:
         raise

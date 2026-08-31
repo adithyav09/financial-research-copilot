@@ -61,3 +61,5 @@ backend/debug_env.py
 
 # Obsidian per-user editor state (vault notes are tracked; this config is not)
 docs/Thesis - Financial Research RAG Project/.obsidian/
+.arize-tmp-traces/
+

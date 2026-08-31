@@ -118,6 +118,9 @@ class QueryResponse(BaseModel):
     # Present when the LLM produced valid structured output; the frontend
     # falls back to rendering `answer` as markdown when it's null.
     structured: Optional[StructuredAnswer] = None
+    # Observability trace id for this request — surfaced in the UI's answer
+    # details so a rendered result can be matched to backend logs/metrics.
+    trace_id: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

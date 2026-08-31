@@ -91,6 +91,8 @@ export interface QueryResponse {
   citations: Citation[];
   tokens_used: number;
   structured?: StructuredAnswer | null;
+  /** Observability trace id — lets a shown answer be matched to backend logs. */
+  trace_id?: string | null;
 }
 
 export interface HealthResponse {
@@ -216,4 +218,6 @@ export interface ChatMessage {
   structured?: StructuredAnswer | null;
   timestamp: Date;
   question?: string;
+  /** Backend trace id for this answer, surfaced in the answer's debug details. */
+  traceId?: string | null;
 }

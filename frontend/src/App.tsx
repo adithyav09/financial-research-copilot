@@ -99,6 +99,7 @@ export default function App() {
     structured: res.structured ?? null,
     timestamp: new Date(),
     question,
+    traceId: res.trace_id ?? null,
   });
 
   // Load sidebar market + historical data and (best-effort) filing status for a ticker.
