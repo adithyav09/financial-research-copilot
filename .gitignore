@@ -63,3 +63,5 @@ backend/debug_env.py
 docs/Thesis - Financial Research RAG Project/.obsidian/
 .arize-tmp-traces/
 
+# Eval harness run outputs
+backend/evals/results/

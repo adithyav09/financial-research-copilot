@@ -1,4 +1,4 @@
-.PHONY: help dev-backend dev-frontend dev test lint format check-env reset-chroma docker-up docker-down
+.PHONY: help dev-backend dev-frontend dev test lint format check-env reset-chroma docker-up docker-down eval eval-install eval-push eval-retrieval
 
 help:
 	@echo ""
@@ -13,6 +13,10 @@ help:
 	@echo "  make reset-chroma     Wipe all ChromaDB collections (interactive)"
 	@echo "  make docker-up        Build and start all services via Docker Compose"
 	@echo "  make docker-down      Stop Docker Compose services"
+	@echo "  make eval-install     Install the RAGAS eval harness deps (evals/)"
+	@echo "  make eval             Run the RAGAS + LLM-judge eval over the golden set"
+	@echo "  make eval-retrieval   Run the baseline retrieval eval (hit@k / recall@k / MRR)"
+	@echo "  make eval-push FILE=… Publish an eval results JSON to Arize as an experiment"
 	@echo ""
 
 dev-backend:
@@ -41,3 +45,15 @@ docker-up:
 
 docker-down:
 	docker-compose down
+
+eval-install:
+	cd backend && source .venv/bin/activate && pip install -r requirements-eval.txt
+
+eval:
+	cd backend && source .venv/bin/activate && python -m evals.run_eval
+
+eval-retrieval:
+	cd backend && source .venv/bin/activate && python -m evals.retrieval_eval
+
+eval-push:
+	cd backend && source .venv/bin/activate && python -m evals.push_to_arize $(FILE)

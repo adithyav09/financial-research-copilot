@@ -1,0 +1,34 @@
+# Labeled eval set for the baseline harness. Reuses the questions + qids from
+# financial_qa.jsonl and adds retrieval labels. Two row kinds via `route`:
+#
+#   route="filing" (default): a SEC-filing retrieval question. `expected_sources`
+#     are distinctive, answer-bearing anchor phrases the relevant passage should
+#     contain. Because document_chunks are character-split with no durable id, an
+#     anchor phrase IS the source identifier: a retrieved chunk is relevant to a
+#     source if its text contains that phrase (case-insensitive). `filing_type`
+#     (10-K / 10-Q) is the stable filing identifier the harness filters on. These
+#     rows are scored (hit@k / recall@k / MRR).
+#
+#   route="live": a market-data / live question answered from Yahoo Finance (and,
+#     for trends, SEC EDGAR XBRL company-facts) — there is NO filing to retrieve,
+#     so retrieval_eval SKIPS these from scoring and only records their expected
+#     data source. They exist to document market-data use-case coverage.
+#
+# `category` groups by use case. Anchors are a first pass — the harness prints
+# which matched; tune against the actual ingested filing. All rows are AAPL.
+{"qid": "aapl-01", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "business-segments", "question": "What reportable geographic segments does Apple use in its annual report?", "expected_sources": ["greater china", "rest of asia pacific"]}
+{"qid": "aapl-02", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "business-segments", "question": "Into which product and service categories does Apple break out its net sales?", "expected_sources": ["wearables, home and accessories", "iphone"]}
+{"qid": "aapl-03", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "risk-factors", "question": "What manufacturing and supplier concentration risks does Apple describe in its filing?", "expected_sources": ["outsourcing partners", "limited sources"]}
+{"qid": "aapl-04", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "risk-factors", "question": "How does Apple characterize competition in the markets where it operates?", "expected_sources": ["highly competitive", "price competition"]}
+{"qid": "aapl-05", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "capital-return", "question": "How does Apple describe returning capital to shareholders through repurchases and dividends?", "expected_sources": ["repurchase", "dividend"]}
+{"qid": "aapl-06", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "business", "question": "What forms of intellectual property protection does Apple rely on according to its filing?", "expected_sources": ["trademarks", "trade secrets"]}
+{"qid": "aapl-07", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "risk-factors", "question": "What risks does Apple describe related to the App Store and its Services business?", "expected_sources": ["app store", "developers"]}
+{"qid": "aapl-08", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "mdna", "question": "How does Apple describe the effect of foreign exchange rates on its business?", "expected_sources": ["foreign currency", "exchange rate"]}
+{"qid": "aapl-09", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "risk-factors", "question": "What does Apple disclose about environmental commitments and related regulatory risk in its filing?", "expected_sources": ["carbon neutral", "environmental"]}
+{"qid": "aapl-10", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "mdna", "question": "What factors does Apple identify as affecting its cost of sales and gross margins?", "expected_sources": ["gross margin", "cost of sales"]}
+{"qid": "aapl-11", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "legal-proceedings", "question": "What does Apple disclose about legal proceedings and government or regulatory investigations?", "expected_sources": ["legal proceedings", "antitrust"]}
+{"qid": "aapl-12", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "mdna-liquidity", "question": "How does Apple describe its sources of liquidity and ability to fund operations?", "expected_sources": ["marketable securities", "liquidity"]}
+{"qid": "aapl-fin-01", "ticker": "AAPL", "route": "filing", "filing_type": "10-K", "category": "financial-statements-xbrl", "question": "What does Apple report for total net sales and net income in its consolidated statements of operations?", "expected_sources": ["net sales", "net income"], "xbrl_concepts": ["us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax", "us-gaap:NetIncomeLoss"]}
+{"qid": "aapl-10q-01", "ticker": "AAPL", "route": "filing", "filing_type": "10-Q", "category": "quarterly-financials", "question": "What does Apple present in the condensed consolidated statements of operations in its Form 10-Q?", "expected_sources": ["condensed consolidated statements of operations", "net sales"]}
+{"qid": "aapl-mkt-01", "ticker": "AAPL", "route": "live", "category": "market-data", "question": "What is Apple's current stock price and market capitalization?", "expected_sources": [], "expected_source": "yahoo_finance:quote (current_price, market_cap)"}
+{"qid": "aapl-mkt-02", "ticker": "AAPL", "route": "live", "category": "market-data", "question": "What is the latest analyst recommendation for Apple?", "expected_sources": [], "expected_source": "yahoo_finance:recommendation (analyst_recommendation)"}

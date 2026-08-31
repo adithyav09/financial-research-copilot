@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # generic api.arize.com; AWS accounts use api.<region>.arize.com. Not the OTLP host.
     arize_api_host: str = "api.arize.com"
 
+    # Offline eval harness (evals/). A stronger judge than the pipeline model
+    # avoids a model grading its own output. Only read by evals/, never by the app.
+    eval_judge_model: str = "gpt-4o"
 
     class Config:
         env_file = ".env"
