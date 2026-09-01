@@ -48,7 +48,7 @@ export default function RequestAccessPage() {
     return (
       <div className="min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center space-y-4">
-          <CheckCircle className="w-12 h-12 text-green-400 mx-auto" />
+          <CheckCircle className="w-12 h-12 text-ledger-pos mx-auto" />
           <h2 className="text-lg font-semibold text-ink">Request submitted</h2>
           <p className="text-sm text-ink-soft">
             You'll be notified when your access is approved. This is typically same-day.

@@ -153,7 +153,7 @@ export default function Sidebar({
             )}
 
             {isLoading && (
-              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-blue-500/5 border-blue-500/20 text-accent-ink">
+              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-accent-ink-soft border-accent-ink text-accent-ink">
                 <Loader2 className="w-3.5 h-3.5 mt-0.5 shrink-0 animate-spin" />
                 <span className="leading-relaxed">{ingestMessage ?? "Loading the annual report…"}</span>
               </div>

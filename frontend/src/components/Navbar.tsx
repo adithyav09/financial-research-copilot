@@ -26,9 +26,9 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
   }, []);
 
   const initial = profile?.email?.[0]?.toUpperCase() ?? "?";
-  const roleBadgeColor = profile?.role === "admin" ? "text-purple-400 bg-purple-400/10 border-purple-400/20"
-    : profile?.role === "approved" ? "text-ledger-pos bg-emerald-400/10 border-emerald-400/20"
-    : "text-ink-soft bg-gray-400/10 border-gray-400/20";
+  const roleBadgeColor = profile?.role === "admin" ? "text-accent-ink bg-accent-ink-soft border-accent-ink"
+    : profile?.role === "approved" ? "text-ledger-pos bg-ledger-pos/10 border-ledger-pos/30"
+    : "text-ink-faint bg-ink-faint/10 border-rule";
   const budgetPct = profile ? Math.min(100, (profile.tokens_consumed / profile.token_budget) * 100) : 0;
 
   return (
@@ -106,7 +106,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
                   <div className="w-full h-1.5 bg-paper rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${
-                        budgetPct > 90 ? "bg-red-500" : budgetPct > 70 ? "bg-amber-500" : "bg-accent-ink"
+                        budgetPct > 90 ? "bg-ledger-neg" : budgetPct > 70 ? "bg-accent-ink" : "bg-ledger-pos"
                       }`}
                       style={{ width: `${budgetPct}%` }}
                     />
@@ -117,7 +117,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
                 {profile.role === "admin" && onOpenAdmin && (
                   <button
                     onClick={() => { setOpen(false); onOpenAdmin(); }}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-ink hover:bg-white/5 transition-colors border-b border-rule"
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-ink hover:bg-paper transition-colors border-b border-rule"
                   >
                     <ShieldCheck className="w-4 h-4" /> Admin Dashboard
                   </button>

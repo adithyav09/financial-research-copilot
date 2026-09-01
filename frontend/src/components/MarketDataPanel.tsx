@@ -63,7 +63,7 @@ export default function MarketDataPanel({ data }: MarketDataPanelProps) {
         </div>
       )}
 
-      <div className="divide-y divide-border/50">
+      <div className="divide-y divide-rule/60">
         <div className="pb-2 space-y-0.5">
           <Row label="Market Cap" value={fmt(data.market_cap, "$")} />
           <Row label="P/E Ratio" value={fmt(data.pe_ratio, "", 1)} />

@@ -44,7 +44,7 @@ export default function PendingApprovalPage() {
                   {step.state === "done" ? (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                   ) : (
-                    <span className={`block rounded-full ${step.state === "active" ? "w-2 h-2 bg-accent-ink animate-pulse" : "w-1.5 h-1.5 bg-gray-700"}`} />
+                    <span className={`block rounded-full ${step.state === "active" ? "w-2 h-2 bg-accent-ink animate-pulse" : "w-1.5 h-1.5 bg-rule-strong"}`} />
                   )}
                 </div>
                 {i < steps.length - 1 && <div className="w-px flex-1 bg-rule my-1" />}

@@ -60,7 +60,7 @@ export default function FirstRunNotice({ onAcknowledge }: { onAcknowledge: () =>
             aria-checked={checked}
             onClick={() => setChecked(c => !c)}
             className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
-              checked ? "border-accent-ink bg-accent-ink-soft" : "border-rule-strong hover:border-gray-400"
+              checked ? "border-accent-ink bg-accent-ink-soft" : "border-rule-strong hover:border-ink-faint"
             }`}
           >
             {checked && <Check className="w-2.5 h-2.5 text-accent-ink" strokeWidth={3} />}
