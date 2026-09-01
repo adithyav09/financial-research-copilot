@@ -1,28 +1,16 @@
 /**
- * The Thesis logo mark — a trend line in a rounded blue-tinted square.
- * One component so the navbar, chat header, sign-in page, and modals all
- * render the identical mark at different sizes.
+ * The Thesis logo mark — a squared, ink-ruled serif "T", identical to the mark
+ * in the landing-page header. One component so the navbar, chat header, sign-in
+ * page, and modals all render the same editorial mark at different sizes.
  */
 export default function ThesisMark({ size = 30 }: { size?: number }) {
-  const icon = Math.round(size / 2);
   return (
-    <div
-      className="flex items-center justify-center rounded-lg bg-accent-ink-soft border border-accent-ink text-accent-ink shrink-0"
-      style={{ width: size, height: size }}
+    <span
+      className="grid place-items-center border-[1.5px] border-ink font-serif font-semibold leading-none text-ink shrink-0"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.72) }}
+      aria-hidden
     >
-      <svg
-        width={icon}
-        height={icon}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M3 3v18h18" />
-        <path d="m19 9-5 5-4-4-3 3" />
-      </svg>
-    </div>
+      T
+    </span>
   );
 }

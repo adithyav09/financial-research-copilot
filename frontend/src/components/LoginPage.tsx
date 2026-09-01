@@ -78,7 +78,7 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
   };
 
   const fieldClass = (invalid: boolean) =>
-    `w-full px-3.5 py-2.5 rounded-[10px] border bg-paper-raised text-[13px] text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink transition-colors ${
+    `w-full px-3.5 py-2.5 border bg-paper-raised text-[13px] text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink transition-colors ${
       invalid ? "border-amber-600" : "border-rule"
     }`;
 
@@ -97,18 +97,18 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
         <div className="w-full max-w-[400px] mx-auto md:mx-0 shrink-0">
           <div className="flex items-center justify-center gap-2.5 mb-1.5">
             <ThesisMark size={34} />
-            <span className="text-[19px] font-semibold text-ink tracking-tight">Thesis</span>
+            <span className="font-serif text-[19px] font-semibold text-ink">Thesis</span>
           </div>
           <p className="mb-5 text-[12.5px] text-ink-soft text-center">Company research you can verify.</p>
 
           {/* Mode tabs */}
-          <div className="flex border border-rule rounded-[10px] p-[3px] bg-paper-raised mb-4">
+          <div className="flex border border-rule p-[3px] bg-paper-raised mb-4">
             {(["signin", "signup"] as const).map(m => (
               <button
                 key={m}
                 type="button"
                 onClick={() => switchMode(m)}
-                className={`flex-1 py-[7px] rounded-lg text-[12.5px] text-center transition-all ${
+                className={`flex-1 py-[7px] text-[12.5px] text-center transition-all ${
                   mode === m
                     ? "font-semibold text-ink bg-paper-raised border border-rule-strong"
                     : "text-ink-soft hover:text-ink"
@@ -169,7 +169,7 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-[11px] rounded-[10px] bg-accent-ink hover:opacity-90 disabled:opacity-50 text-paper text-[13px] font-semibold transition-all"
+              className="w-full py-[11px] bg-accent-ink hover:opacity-90 disabled:opacity-50 text-paper text-[13px] font-semibold transition-all"
             >
               {submitting ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
             </button>
@@ -184,13 +184,13 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
           <div className="flex gap-2.5">
             <button
               onClick={signInWithGoogle}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-rule bg-paper-raised hover:bg-paper-raised text-ink text-[12.5px] font-medium transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-rule bg-paper-raised hover:bg-paper-raised text-ink text-[12.5px] font-medium transition-all"
             >
               <GoogleIcon /> Google
             </button>
             <button
               onClick={signInWithGitHub}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-rule bg-paper-raised hover:bg-paper-raised text-ink text-[12.5px] font-medium transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-rule bg-paper-raised hover:bg-paper-raised text-ink text-[12.5px] font-medium transition-all"
             >
               <Github className="w-4 h-4" /> GitHub
             </button>
@@ -207,7 +207,7 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
         <div className="hidden md:block w-px bg-rule" />
         <div className="hidden md:flex w-[380px] shrink-0 flex-col justify-center">
           <p className="mb-1 text-[10.5px] font-bold text-ink-soft uppercase tracking-[.13em]">After sign-up</p>
-          <h3 className="mb-4 text-base font-semibold text-ink tracking-tight">You're in the review queue</h3>
+          <h3 className="mb-4 font-serif text-lg font-semibold text-ink">You're in the review queue</h3>
           <div className="flex flex-col">
             {[
               { state: "done", title: "Create your account", body: "Email + password, or Google/GitHub." },

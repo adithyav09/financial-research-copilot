@@ -58,7 +58,7 @@ export default function MarketDataPanel({ data }: MarketDataPanelProps) {
 
       {/* Analyst rec badge */}
       {data.analyst_recommendation && (
-        <div className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent-ink-soft text-accent-ink border border-accent-ink">
+        <div className="inline-block px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-accent-ink-soft text-accent-ink border border-accent-ink">
           {data.analyst_recommendation}
         </div>
       )}

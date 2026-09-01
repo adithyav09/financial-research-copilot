@@ -36,7 +36,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
       <div className="flex items-center gap-2.5">
         <ThesisMark size={30} />
         <div className="flex items-baseline gap-2.5">
-          <span className="text-[15px] font-semibold text-ink tracking-tight">Thesis</span>
+          <span className="font-serif text-[15px] font-semibold text-ink">Thesis</span>
           <span className="text-xs text-ink-soft hidden sm:inline">
             Company research you can verify
           </span>
@@ -48,7 +48,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
           <button
             onClick={onToggleHistory}
             title={showHistory ? "Hide history" : "Show history"}
-            className={`p-1.5 rounded-lg border transition-all ${
+            className={`p-1.5 border transition-all ${
               showHistory
                 ? "border-accent-ink bg-accent-ink-soft text-accent-ink"
                 : "border-rule text-ink-soft hover:text-ink hover:border-rule-strong"
@@ -60,7 +60,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
         {onShowHowAnswersAreMade && (
           <button
             onClick={onShowHowAnswersAreMade}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-rule text-xs text-ink-soft hover:text-ink hover:border-rule-strong transition-all"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border border-rule text-xs text-ink-soft hover:text-ink hover:border-rule-strong transition-all"
           >
             <Info className="w-3 h-3" />
             How answers are made
@@ -72,7 +72,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setOpen(o => !o)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-rule hover:border-rule-strong transition-all"
+              className="flex items-center gap-1.5 px-2 py-1 border border-rule hover:border-rule-strong transition-all"
             >
               <div className="w-6 h-6 rounded-full bg-accent-ink-soft border border-accent-ink flex items-center justify-center text-[11px] font-bold text-accent-ink">
                 {initial}
@@ -81,7 +81,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
             </button>
 
             {open && (
-              <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-rule bg-paper-raised shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] z-50 overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 w-64 border border-rule bg-paper-raised shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-rule">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-accent-ink-soft border border-accent-ink flex items-center justify-center text-sm font-bold text-accent-ink">
@@ -89,7 +89,7 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-ink truncate">{profile.email}</p>
-                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase border ${roleBadgeColor}`}>
+                      <span className={`inline-block mt-0.5 px-1.5 py-0.5 text-[10px] font-semibold uppercase border ${roleBadgeColor}`}>
                         {profile.role}
                       </span>
                     </div>

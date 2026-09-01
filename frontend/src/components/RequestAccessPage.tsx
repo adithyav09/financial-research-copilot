@@ -49,7 +49,7 @@ export default function RequestAccessPage() {
       <div className="min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center space-y-4">
           <CheckCircle className="w-12 h-12 text-ledger-pos mx-auto" />
-          <h2 className="text-lg font-semibold text-ink">Request submitted</h2>
+          <h2 className="font-serif text-lg font-semibold text-ink">Request submitted</h2>
           <p className="text-sm text-ink-soft">
             You'll be notified when your access is approved. This is typically same-day.
           </p>
@@ -63,10 +63,10 @@ export default function RequestAccessPage() {
     <div className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-accent-ink-soft border border-accent-ink mx-auto">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-accent-ink-soft border border-accent-ink mx-auto">
             <BarChart2 className="w-6 h-6 text-accent-ink" />
           </div>
-          <h1 className="text-xl font-bold text-ink">Request Access</h1>
+          <h1 className="font-serif text-2xl font-semibold text-ink">Request Access</h1>
           <p className="text-sm text-ink-soft">
             Signed in as <span className="text-ink">{user?.email}</span>
           </p>
@@ -78,7 +78,7 @@ export default function RequestAccessPage() {
             <select
               value={investorType}
               onChange={(e) => setInvestorType(e.target.value)}
-              className="w-full px-3 py-2.5 bg-paper-raised border border-rule rounded-lg text-sm text-ink focus:outline-none focus:border-accent-ink"
+              className="w-full px-3 py-2.5 bg-paper-raised border border-rule text-sm text-ink focus:outline-none focus:border-accent-ink"
             >
               {INVESTOR_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
@@ -94,7 +94,7 @@ export default function RequestAccessPage() {
               rows={3}
               placeholder="e.g. Research semiconductor companies before earnings…"
               required
-              className="w-full px-3 py-2.5 bg-paper-raised border border-rule rounded-lg text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink resize-none"
+              className="w-full px-3 py-2.5 bg-paper-raised border border-rule text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink resize-none"
             />
           </div>
 
@@ -103,7 +103,7 @@ export default function RequestAccessPage() {
           <button
             type="submit"
             disabled={submitting || !useCase.trim()}
-            className="w-full py-2.5 bg-accent-ink hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-paper transition-all"
+            className="w-full py-2.5 bg-accent-ink hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-paper transition-all"
           >
             {submitting ? "Submitting…" : "Submit request"}
           </button>

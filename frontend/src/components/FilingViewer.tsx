@@ -80,7 +80,7 @@ export default function FilingViewer({
       {/* Header */}
       <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-rule">
         <div className="flex gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-paper border border-rule flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 bg-paper border border-rule flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4 text-ink-soft" />
           </div>
           <div className="min-w-0">
@@ -122,14 +122,14 @@ export default function FilingViewer({
             <button
               disabled={!prev}
               onClick={() => prev && onNavigate(prev.citation, prev.number)}
-              className="w-6 h-6 rounded-md border border-rule flex items-center justify-center text-ink-soft hover:text-ink hover:border-accent-ink disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="w-6 h-6 border border-rule flex items-center justify-center text-ink-soft hover:text-ink hover:border-accent-ink disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               disabled={!next}
               onClick={() => next && onNavigate(next.citation, next.number)}
-              className="w-6 h-6 rounded-md border border-accent-ink bg-accent-ink-soft flex items-center justify-center text-accent-ink hover:bg-accent-ink-soft disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-transparent disabled:border-rule disabled:text-ink-soft transition-all"
+              className="w-6 h-6 border border-accent-ink bg-accent-ink-soft flex items-center justify-center text-accent-ink hover:bg-accent-ink-soft disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-transparent disabled:border-rule disabled:text-ink-soft transition-all"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -160,7 +160,7 @@ export default function FilingViewer({
               className="relative mb-3 px-3.5 py-2.5 border-l-[3px] text-ink"
               style={{ backgroundColor: "var(--hl)", borderLeftColor: "var(--hl-edge)" }}
             >
-              <span className="absolute top-2 right-2.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-0.5 rounded bg-accent-ink text-paper text-[9px] font-bold">
+              <span className="absolute top-2 right-2.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-0.5 bg-accent-ink text-paper text-[9px] font-bold">
                 {citationNumber}
               </span>
               <p className="whitespace-pre-line">{p.content}</p>
@@ -176,7 +176,7 @@ export default function FilingViewer({
         <button
           onClick={copyQuote}
           disabled={!data}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rule text-[11.5px] text-ink hover:border-accent-ink hover:text-ink disabled:opacity-40 transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-rule text-[11.5px] text-ink hover:border-accent-ink hover:text-ink disabled:opacity-40 transition-all"
         >
           {copied ? <Check className="w-3 h-3 text-ledger-pos" /> : <Copy className="w-3 h-3" />}
           {copied ? "Copied" : "Copy quote"}
@@ -184,7 +184,7 @@ export default function FilingViewer({
         <button
           onClick={askAbout}
           disabled={!data}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rule text-[11.5px] text-ink hover:border-accent-ink hover:text-ink disabled:opacity-40 transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-rule text-[11.5px] text-ink hover:border-accent-ink hover:text-ink disabled:opacity-40 transition-all"
         >
           <MessageSquarePlus className="w-3 h-3" />
           Ask about this passage

@@ -110,7 +110,7 @@ export default function ChatHistory({ currentSessionId, currentTicker, onSelectS
       <div className="px-3.5 py-3 border-b border-rule shrink-0">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-accent-ink bg-accent-ink-soft text-accent-ink text-xs font-semibold hover:bg-accent-ink-soft transition-all"
+          className="w-full flex items-center justify-center gap-1.5 py-2 border border-accent-ink bg-accent-ink-soft text-accent-ink text-xs font-semibold hover:bg-accent-ink-soft transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
           New research
@@ -143,14 +143,14 @@ export default function ChatHistory({ currentSessionId, currentTicker, onSelectS
             <button
               key={session.session_id}
               onClick={() => onSelectSession(session)}
-              className={`w-full flex flex-col gap-1 px-2.5 py-2 rounded-lg text-left transition-all ${
+              className={`w-full flex flex-col gap-1 px-2.5 py-2 text-left transition-all ${
                 isCurrent
                   ? "bg-accent-ink-soft border border-accent-ink"
                   : "border border-transparent hover:bg-paper"
               }`}
             >
               <div className="flex items-center gap-1.5">
-                <span className={`font-mono text-[10.5px] font-bold px-1.5 py-px rounded ${
+                <span className={`font-mono text-[10.5px] font-bold px-1.5 py-px ${
                   isCurrent || isActiveTicker
                     ? "text-accent-ink bg-accent-ink-soft"
                     : "text-ink-soft bg-paper-raised"

@@ -33,17 +33,17 @@ export default function FirstRunNotice({ onAcknowledge }: { onAcknowledge: () =>
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-[2px] px-4">
-      <div className="w-full max-w-[560px] rounded-2xl border border-rule-strong bg-paper-raised shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] p-7">
+      <div className="w-full max-w-[560px] border border-rule-strong bg-paper-raised shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] p-7">
         <div className="flex items-center gap-2.5 mb-1.5">
           <ThesisMark size={30} />
-          <h2 className="text-[17px] font-semibold text-ink tracking-tight">Before you research</h2>
+          <h2 className="font-serif text-[19px] font-semibold text-ink">Before you research</h2>
         </div>
         <p className="mb-5 text-[12.5px] text-ink-soft">Three things worth knowing — you'll only see this once.</p>
 
         <div className="flex flex-col gap-3.5">
           {points.map(({ icon: Icon, title, body }) => (
             <div key={title} className="flex gap-3">
-              <div className="w-8 h-8 rounded-lg bg-paper border border-rule flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 bg-paper border border-rule flex items-center justify-center shrink-0">
                 <Icon className="w-4 h-4 text-ink-soft" />
               </div>
               <div>
@@ -59,7 +59,7 @@ export default function FirstRunNotice({ onAcknowledge }: { onAcknowledge: () =>
             role="checkbox"
             aria-checked={checked}
             onClick={() => setChecked(c => !c)}
-            className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
+            className={`w-4 h-4 flex items-center justify-center border transition-all shrink-0 ${
               checked ? "border-accent-ink bg-accent-ink-soft" : "border-rule-strong hover:border-ink-faint"
             }`}
           >
@@ -71,7 +71,7 @@ export default function FirstRunNotice({ onAcknowledge }: { onAcknowledge: () =>
           <button
             onClick={onAcknowledge}
             disabled={!checked}
-            className="ml-auto px-4 py-2 rounded-[9px] bg-accent-ink text-paper text-[12.5px] font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0"
+            className="ml-auto px-4 py-2 bg-accent-ink text-paper text-[12.5px] font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0"
           >
             Start researching
           </button>

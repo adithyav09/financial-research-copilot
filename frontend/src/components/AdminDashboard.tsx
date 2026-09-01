@@ -181,19 +181,19 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-1.5 rounded-lg border border-rule text-ink-soft hover:text-ink hover:border-rule-strong transition-all"
+            className="p-1.5 border border-rule text-ink-soft hover:text-ink hover:border-rule-strong transition-all"
             title="Back to chat"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-8 h-8 rounded-lg bg-accent-ink-soft border border-accent-ink flex items-center justify-center">
+          <div className="w-8 h-8 bg-accent-ink-soft border border-accent-ink flex items-center justify-center">
             <ShieldCheck className="w-4 h-4 text-accent-ink" />
           </div>
-          <h1 className="text-[17px] font-semibold text-ink tracking-tight">Admin Dashboard</h1>
+          <h1 className="font-serif text-[19px] font-semibold text-ink">Admin Dashboard</h1>
         </div>
 
         {loadError && (
-          <div className="rounded-xl px-3.5 py-2.5 text-[12.5px] border bg-ledger-neg/5 border-ledger-neg/25 text-ledger-neg">
+          <div className="px-3.5 py-2.5 text-[12.5px] border bg-ledger-neg/5 border-ledger-neg/25 text-ledger-neg">
             {loadError}
           </div>
         )}
@@ -201,23 +201,23 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         {/* Usage summary */}
         {usage && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="bg-paper-raised border border-rule rounded-xl px-4 py-3.5">
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
               <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Total Users</p>
               <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_users}</p>
             </div>
-            <div className="bg-paper-raised border border-rule rounded-xl px-4 py-3.5">
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
               <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Tokens Consumed</p>
               <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_tokens_consumed.toLocaleString()}</p>
             </div>
-            <div className="bg-paper-raised border border-rule rounded-xl px-4 py-3.5">
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
               <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Budget Allocated</p>
               <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_token_budget.toLocaleString()}</p>
             </div>
-            <div className="bg-paper-raised border border-rule rounded-xl px-4 py-3.5">
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
               <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">By Role</p>
               <p className="mt-1.5 text-xs text-ink-soft flex flex-wrap gap-1.5">
                 {Object.entries(usage.by_role).map(([role, count]) => (
-                  <span key={role} className={`inline-block px-1.5 py-0.5 rounded text-[10.5px] font-semibold border ${roleBadgeColor(role)}`}>
+                  <span key={role} className={`inline-block px-1.5 py-0.5 text-[10.5px] font-semibold border ${roleBadgeColor(role)}`}>
                     {role}: {count}
                   </span>
                 ))}
@@ -227,7 +227,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         )}
 
         {/* Pending requests */}
-        <div className="bg-paper-raised border border-rule rounded-xl overflow-hidden">
+        <div className="bg-paper-raised border border-rule overflow-hidden">
           <div className="px-4 py-3 border-b border-rule flex items-center gap-2">
             <Users className="w-3.5 h-3.5 text-ink-faint" />
             <h2 className="text-[13px] font-semibold text-ink">Pending Requests ({pending.length})</h2>
@@ -254,19 +254,19 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         onChange={e =>
                           setPendingDrafts(prev => ({ ...prev, [req.user_id]: e.target.value }))
                         }
-                        className="w-24 px-2 py-1.5 text-[11.5px] rounded-lg bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
+                        className="w-24 px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
                       />
                       <button
                         onClick={() => handleApprove(req)}
                         disabled={busyRows[req.user_id]}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-ledger-pos/10 hover:bg-ledger-pos/20 border border-ledger-pos/30 text-ledger-pos text-[11.5px] font-medium transition-all disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-ledger-pos/10 hover:bg-ledger-pos/20 border border-ledger-pos/30 text-ledger-pos text-[11.5px] font-medium transition-all disabled:opacity-50"
                       >
                         <Check className="w-3 h-3" /> Approve
                       </button>
                       <button
                         onClick={() => handleDeny(req)}
                         disabled={busyRows[req.user_id]}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-ledger-neg/10 hover:bg-ledger-neg/20 border border-ledger-neg/30 text-ledger-neg text-[11.5px] font-medium transition-all disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-ledger-neg/10 hover:bg-ledger-neg/20 border border-ledger-neg/30 text-ledger-neg text-[11.5px] font-medium transition-all disabled:opacity-50"
                       >
                         <X className="w-3 h-3" /> Deny
                       </button>
@@ -282,7 +282,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         </div>
 
         {/* All users */}
-        <div className="bg-paper-raised border border-rule rounded-xl overflow-hidden">
+        <div className="bg-paper-raised border border-rule overflow-hidden">
           <div className="px-4 py-3 border-b border-rule">
             <h2 className="text-[13px] font-semibold text-ink">All Users ({users.length})</h2>
           </div>
@@ -292,7 +292,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex items-center gap-2">
                     <p className="text-[13px] text-ink truncate">{u.email}</p>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase border ${roleBadgeColor(u.role)}`}>
+                    <span className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase border ${roleBadgeColor(u.role)}`}>
                       {u.role}
                     </span>
                   </div>
@@ -301,7 +301,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     <select
                       value={roleDrafts[u.user_id] ?? u.role}
                       onChange={e => setRoleDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
-                      className="px-2 py-1.5 text-[11.5px] rounded-lg bg-paper border border-rule text-ink capitalize focus:outline-none focus:border-accent-ink transition-colors"
+                      className="px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink capitalize focus:outline-none focus:border-accent-ink transition-colors"
                     >
                       {["pending", "approved", "admin", "denied"].map(r => (
                         <option key={r} value={r}>{r}</option>
@@ -310,7 +310,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     <button
                       onClick={() => handleSetRole(u)}
                       disabled={busyRows[`role:${u.user_id}`] || (roleDrafts[u.user_id] ?? u.role) === u.role}
-                      className="px-2.5 py-1.5 rounded-lg bg-accent-ink-soft hover:opacity-80 border border-accent-ink text-accent-ink text-[11.5px] font-medium transition-all disabled:opacity-50"
+                      className="px-2.5 py-1.5 bg-accent-ink-soft hover:opacity-80 border border-accent-ink text-accent-ink text-[11.5px] font-medium transition-all disabled:opacity-50"
                     >
                       Set Role
                     </button>
@@ -322,12 +322,12 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       placeholder={String(u.token_budget)}
                       value={grantDrafts[u.user_id] ?? ""}
                       onChange={e => setGrantDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
-                      className="w-24 px-2 py-1.5 text-[11.5px] rounded-lg bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
+                      className="w-24 px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
                     />
                     <button
                       onClick={() => handleGrant(u)}
                       disabled={busyRows[`grant:${u.user_id}`]}
-                      className="px-2.5 py-1.5 rounded-lg bg-accent-ink hover:opacity-90 border border-accent-ink text-paper text-[11.5px] font-medium transition-all disabled:opacity-50"
+                      className="px-2.5 py-1.5 bg-accent-ink hover:opacity-90 border border-accent-ink text-paper text-[11.5px] font-medium transition-all disabled:opacity-50"
                     >
                       Save
                     </button>

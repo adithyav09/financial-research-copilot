@@ -27,11 +27,11 @@ export default function PendingApprovalPage() {
       <div className="w-full max-w-md">
         <div className="flex items-center gap-2.5 mb-1">
           <ThesisMark size={30} />
-          <span className="text-[17px] font-semibold text-ink tracking-tight">Thesis</span>
+          <span className="font-serif text-[17px] font-semibold text-ink">Thesis</span>
         </div>
         <p className="mb-6 text-[12.5px] text-ink-soft">Company research you can verify.</p>
 
-        <h2 className="mb-4 text-base font-semibold text-ink">You're in the review queue</h2>
+        <h2 className="mb-4 font-serif text-lg font-semibold text-ink">You're in the review queue</h2>
         <div className="flex flex-col">
           {steps.map((step, i) => (
             <div key={step.title} className="flex gap-3">

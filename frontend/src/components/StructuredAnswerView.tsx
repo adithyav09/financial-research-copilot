@@ -43,10 +43,10 @@ function AutoChart({ spec, xbrl }: { spec: NonNullable<StructuredAnswer["chart"]
   if (years.length < 2) return null; // a one-year "trend" chart is noise
 
   return (
-    <div className="rounded-xl border border-rule bg-paper-raised px-[18px] pt-3.5 pb-2.5">
+    <div className="border border-rule bg-paper-raised px-[18px] pt-3.5 pb-2.5">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-ink">{spec.title}</span>
-        <span className="font-mono text-[10px] text-ink-faint border border-rule rounded px-1.5 py-0.5">
+        <span className="font-mono text-[10px] text-ink-faint border border-rule px-1.5 py-0.5">
           auto · SEC XBRL
         </span>
       </div>
@@ -83,7 +83,7 @@ export default function StructuredAnswerView({ structured, citations, xbrlData, 
   return (
     <div className="flex flex-col gap-2.5">
       {/* Takeaway */}
-      <div className="rounded-xl border border-rule bg-paper-raised px-[18px] py-4">
+      <div className="border border-rule bg-paper-raised px-[18px] py-4">
         <p className="mb-1.5 text-[10px] font-bold text-accent-ink uppercase tracking-[.14em]">Takeaway</p>
         <p className="text-[15px] font-medium text-ink leading-relaxed">{structured.takeaway}</p>
         {citations.length > 0 && (
@@ -100,7 +100,7 @@ export default function StructuredAnswerView({ structured, citations, xbrlData, 
           {structured.metrics.map((m, i) => {
             const cite = m.citation != null ? citations[m.citation - 1] : undefined;
             return (
-              <div key={i} className="rounded-[10px] border border-rule bg-paper-raised px-3.5 py-3">
+              <div key={i} className="border border-rule bg-paper-raised px-3.5 py-3">
                 <p className="text-[10px] font-semibold text-ink-soft uppercase tracking-wider">{m.label}</p>
                 <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
                   <span className="font-mono text-[19px] font-bold text-ink">{m.value}</span>
@@ -120,7 +120,7 @@ export default function StructuredAnswerView({ structured, citations, xbrlData, 
       )}
 
       {/* Narrative */}
-      <div className="rounded-xl border border-rule bg-paper-raised px-[18px] py-4 text-sm leading-[1.7] text-ink">
+      <div className="border border-rule bg-paper-raised px-[18px] py-4 text-sm leading-[1.7] text-ink">
         <AnswerMarkdown content={structured.narrative} citations={citations} onCitationClick={onCitationClick} />
       </div>
 

@@ -129,12 +129,12 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Sea
           autoFocus={autoFocus}
           autoComplete="off"
           spellCheck={false}
-          className={`w-full pr-3 bg-paper rounded-lg border border-rule text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink focus:ring-1 focus:ring-accent/20 transition-all ${inputSize}`}
+          className={`w-full pr-3 bg-paper border border-rule text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink focus:ring-1 focus:ring-accent/20 transition-all ${inputSize}`}
         />
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-paper-raised border border-rule rounded-xl shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] overflow-hidden z-50 max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-paper-raised border border-rule shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] overflow-hidden z-50 max-h-60 overflow-y-auto">
           {results.map((entry, i) => (
             <button
               key={entry.cik_str}

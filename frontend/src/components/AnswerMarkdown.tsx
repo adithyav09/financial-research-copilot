@@ -51,7 +51,7 @@ export function CitationBadge({ num, citation, onOpen }: { num: number; citation
       <button
         ref={btnRef}
         onClick={handleClick}
-        className={`inline-flex items-center justify-center min-w-4 h-4 px-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
+        className={`inline-flex items-center justify-center min-w-4 h-4 px-0.5 text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
           open
             ? "bg-accent-ink text-paper border-accent-ink"
             : "bg-accent-ink-soft text-accent-ink hover:bg-accent-ink-soft border-accent-ink"
@@ -64,7 +64,7 @@ export function CitationBadge({ num, citation, onOpen }: { num: number; citation
         <div
           ref={popRef}
           style={{ position: "fixed", top: pos.top, left: pos.left, transform: "translate(-50%, -100%)", zIndex: 9999 }}
-          className="w-80 rounded-xl border border-rule bg-paper-raised shadow-[0_12px_30px_-12px_rgba(20,22,26,0.35)] text-left"
+          className="w-80 border border-rule bg-paper-raised shadow-[0_12px_30px_-12px_rgba(20,22,26,0.35)] text-left"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-rule">
@@ -75,7 +75,7 @@ export function CitationBadge({ num, citation, onOpen }: { num: number; citation
               href={highlightUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] font-medium text-ink hover:text-accent-ink bg-paper px-2 py-1 rounded-md border border-rule hover:border-accent-ink transition-all"
+              className="flex items-center gap-1 text-[10px] font-medium text-ink hover:text-accent-ink bg-paper px-2 py-1 border border-rule hover:border-accent-ink transition-all"
             >
               <ExternalLink className="w-3 h-3" />
               Open &amp; highlight in filing
@@ -107,7 +107,7 @@ function makeMarkdownComponents(citations: Citation[], onCitationClick?: Citatio
     li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
     strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-ink">{children}</strong>,
     em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-ink">{children}</em>,
-    code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-paper px-1 py-0.5 rounded text-accent-ink">{children}</code>,
+    code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-paper px-1 py-0.5 text-accent-ink">{children}</code>,
     // Custom span handles our cit-N placeholders
     span: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
       if (typeof className === "string" && className.startsWith("cit-")) {

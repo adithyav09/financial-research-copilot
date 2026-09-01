@@ -46,7 +46,7 @@ export default function HowAnswersPanel({ onClose }: { onClose: () => void }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-[15px] font-semibold text-ink tracking-tight">How answers are made</h3>
+          <h3 className="font-serif text-[16px] font-semibold text-ink">How answers are made</h3>
           <button onClick={onClose} className="p-1 text-ink-soft hover:text-ink transition-colors" title="Close (esc)">
             <X className="w-4 h-4" />
           </button>
@@ -74,7 +74,7 @@ export default function HowAnswersPanel({ onClose }: { onClose: () => void }) {
         {/* Honest-limits grid */}
         <div className="grid grid-cols-2 gap-2 mt-5">
           {FACTS.map(([label, body]) => (
-            <div key={label} className="rounded-lg border border-rule bg-paper px-3 py-2.5">
+            <div key={label} className="border border-rule bg-paper px-3 py-2.5">
               <p className="text-[10px] font-bold text-ink-soft uppercase tracking-wider">{label}</p>
               <p className="mt-1 text-[11px] text-ink-soft leading-relaxed">{body}</p>
             </div>

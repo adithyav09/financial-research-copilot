@@ -67,7 +67,7 @@ export default function VisualizeBuilder({ xbrl, ticker }: Props) {
     .map(m => ({ key: m.key, label: m.label, color: m.color, data: m.get(xbrl) ?? [] }));
 
   return (
-    <div className="mt-3 w-full max-w-2xl rounded-xl border border-rule bg-paper-raised overflow-hidden">
+    <div className="mt-3 w-full max-w-2xl border border-rule bg-paper-raised overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink hover:bg-paper transition-colors"
@@ -91,7 +91,7 @@ export default function VisualizeBuilder({ xbrl, ticker }: Props) {
                   <button
                     key={m.key}
                     onClick={() => toggle(m.key)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium border transition-all ${
                       on ? "border-transparent text-ink" : "border-rule text-ink-faint hover:text-ink-soft"
                     }`}
                     style={on ? { backgroundColor: `${m.color}22`, borderColor: `${m.color}66`, color: m.color } : undefined}
@@ -109,22 +109,22 @@ export default function VisualizeBuilder({ xbrl, ticker }: Props) {
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold text-ink-faint uppercase tracking-widest">Years</span>
               <select value={fromYear} onChange={e => setFromYear(Number(e.target.value))}
-                className="bg-paper border border-rule rounded-md px-2 py-1 text-xs text-ink focus:outline-none focus:border-accent-ink">
+                className="bg-paper border border-rule px-2 py-1 text-xs text-ink focus:outline-none focus:border-accent-ink">
                 {allYears.filter(y => y <= toYear).map(y => <option key={y} value={y}>{y}</option>)}
               </select>
               <span className="text-ink-faint text-xs">→</span>
               <select value={toYear} onChange={e => setToYear(Number(e.target.value))}
-                className="bg-paper border border-rule rounded-md px-2 py-1 text-xs text-ink focus:outline-none focus:border-accent-ink">
+                className="bg-paper border border-rule px-2 py-1 text-xs text-ink focus:outline-none focus:border-accent-ink">
                 {allYears.filter(y => y >= fromYear).map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-rule p-0.5">
+            <div className="flex items-center gap-1 border border-rule p-0.5">
               <button onClick={() => setType("bar")}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all ${type === "bar" ? "bg-accent-ink-soft text-accent-ink" : "text-ink-faint hover:text-ink-soft"}`}>
+                className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-all ${type === "bar" ? "bg-accent-ink-soft text-accent-ink" : "text-ink-faint hover:text-ink-soft"}`}>
                 <BarChart2 className="w-3 h-3" /> Bar
               </button>
               <button onClick={() => setType("line")}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all ${type === "line" ? "bg-accent-ink-soft text-accent-ink" : "text-ink-faint hover:text-ink-soft"}`}>
+                className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-all ${type === "line" ? "bg-accent-ink-soft text-accent-ink" : "text-ink-faint hover:text-ink-soft"}`}>
                 <LineIcon className="w-3 h-3" /> Line
               </button>
             </div>

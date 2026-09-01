@@ -83,7 +83,7 @@ export default function Sidebar({
         {ticker && (
           <div className="p-4 border-b border-rule">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-paper-raised border border-rule-strong flex items-center justify-center font-mono text-sm font-bold text-ink shrink-0">
+              <div className="w-9 h-9 bg-paper-raised border border-rule-strong flex items-center justify-center font-mono text-sm font-bold text-ink shrink-0">
                 {ticker[0]}
               </div>
               <div className="min-w-0">
@@ -138,7 +138,7 @@ export default function Sidebar({
             <p className="text-[10.5px] font-semibold text-ink-soft uppercase tracking-[.13em]">Filings on file</p>
 
             {filingStatus?.status === "ready" && (
-              <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-paper border border-rule">
+              <div className="flex items-center gap-2 px-2.5 py-2 bg-paper border border-rule">
                 <FileText className="w-3.5 h-3.5 text-ink-soft shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-ink font-medium">
@@ -153,7 +153,7 @@ export default function Sidebar({
             )}
 
             {isLoading && (
-              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-accent-ink-soft border-accent-ink text-accent-ink">
+              <div className="flex items-start gap-2 px-2.5 py-2 text-xs border bg-accent-ink-soft border-accent-ink text-accent-ink">
                 <Loader2 className="w-3.5 h-3.5 mt-0.5 shrink-0 animate-spin" />
                 <span className="leading-relaxed">{ingestMessage ?? "Loading the annual report…"}</span>
               </div>
@@ -166,7 +166,7 @@ export default function Sidebar({
             )}
 
             {staleInfo && ingestPhase === "ready" && (
-              <div className="flex flex-col gap-2 rounded-lg px-2.5 py-2 text-xs border bg-amber-500/5 border-amber-500/20 text-stamp">
+              <div className="flex flex-col gap-2 px-2.5 py-2 text-xs border bg-amber-500/5 border-amber-500/20 text-stamp">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-stamp" />
                   <span className="leading-relaxed">
@@ -175,7 +175,7 @@ export default function Sidebar({
                 </div>
                 <button
                   onClick={onReIngest}
-                  className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-stamp font-medium transition-all"
+                  className="flex items-center justify-center gap-1.5 w-full py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-stamp font-medium transition-all"
                 >
                   <RefreshCw className="w-3 h-3" />
                   Load the {staleInfo.latestYear} report
@@ -184,7 +184,7 @@ export default function Sidebar({
             )}
 
             {ingestPhase === "error" && ingestMessage && (
-              <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs border bg-red-500/5 border-red-500/20 text-ledger-neg">
+              <div className="flex items-start gap-2 px-2.5 py-2 text-xs border bg-red-500/5 border-red-500/20 text-ledger-neg">
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span className="leading-relaxed">{ingestMessage}</span>
               </div>
