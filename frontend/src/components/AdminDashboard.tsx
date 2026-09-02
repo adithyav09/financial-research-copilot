@@ -9,27 +9,27 @@ interface AdminDashboardProps {
 
 const roleBadgeColor = (role: string) =>
   role === "admin"
-    ? "text-purple-400 bg-purple-400/10 border-purple-400/20"
+    ? "text-accent-ink bg-accent-ink-soft border-accent-ink"
     : role === "approved"
-      ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
+      ? "text-ledger-pos bg-ledger-pos/10 border-ledger-pos/30"
       : role === "denied"
-        ? "text-red-400 bg-red-400/10 border-red-400/20"
-        : "text-gray-400 bg-gray-400/10 border-gray-400/20";
+        ? "text-ledger-neg bg-ledger-neg/10 border-ledger-neg/30"
+        : "text-ink-faint bg-ink-faint/10 border-rule";
 
 function TokenBar({ consumed, budget }: { consumed: number; budget: number }) {
   const pct = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
   return (
     <div className="space-y-1 min-w-[140px]">
       <div className="flex justify-between text-[11px]">
-        <span className="text-gray-500">Usage</span>
-        <span className="text-gray-300 font-mono">
+        <span className="text-ink-faint">Usage</span>
+        <span className="text-ink-soft font-mono">
           {consumed.toLocaleString()} / {budget.toLocaleString()}
         </span>
       </div>
-      <div className="w-full h-1.5 bg-surface rounded-full overflow-hidden">
+      <div className="w-full h-1.5 bg-rule rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${
-            pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-accent"
+            pct > 90 ? "bg-ledger-neg" : pct > 70 ? "bg-accent-ink" : "bg-ledger-pos"
           }`}
           style={{ width: `${pct}%` }}
         />
@@ -169,31 +169,31 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      <div className="flex-1 flex items-center justify-center bg-paper">
+        <Loader2 className="w-6 h-6 animate-spin text-accent-ink" />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-surface">
+    <div className="flex-1 overflow-y-auto bg-paper">
       <div className="max-w-5xl mx-auto px-8 py-7 space-y-5">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-1.5 rounded-lg border border-border text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-all"
+            className="p-1.5 border border-rule text-ink-soft hover:text-ink hover:border-rule-strong transition-all"
             title="Back to chat"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/25 flex items-center justify-center">
-            <ShieldCheck className="w-4 h-4 text-accent-hover" />
+          <div className="w-8 h-8 bg-accent-ink-soft border border-accent-ink flex items-center justify-center">
+            <ShieldCheck className="w-4 h-4 text-accent-ink" />
           </div>
-          <h1 className="text-[17px] font-semibold text-white tracking-tight">Admin Dashboard</h1>
+          <h1 className="font-serif text-[19px] font-semibold text-ink">Admin Dashboard</h1>
         </div>
 
         {loadError && (
-          <div className="rounded-xl px-3.5 py-2.5 text-[12.5px] border bg-red-500/5 border-red-500/20 text-red-400">
+          <div className="px-3.5 py-2.5 text-[12.5px] border bg-ledger-neg/5 border-ledger-neg/25 text-ledger-neg">
             {loadError}
           </div>
         )}
@@ -201,23 +201,23 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         {/* Usage summary */}
         {usage && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="bg-surface-secondary border border-border rounded-xl px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">Total Users</p>
-              <p className="mt-1 font-mono text-xl font-bold text-white">{usage.total_users}</p>
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
+              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Total Users</p>
+              <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_users}</p>
             </div>
-            <div className="bg-surface-secondary border border-border rounded-xl px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">Tokens Consumed</p>
-              <p className="mt-1 font-mono text-xl font-bold text-white">{usage.total_tokens_consumed.toLocaleString()}</p>
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
+              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Tokens Consumed</p>
+              <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_tokens_consumed.toLocaleString()}</p>
             </div>
-            <div className="bg-surface-secondary border border-border rounded-xl px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">Budget Allocated</p>
-              <p className="mt-1 font-mono text-xl font-bold text-white">{usage.total_token_budget.toLocaleString()}</p>
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
+              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Budget Allocated</p>
+              <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_token_budget.toLocaleString()}</p>
             </div>
-            <div className="bg-surface-secondary border border-border rounded-xl px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-gray-500 uppercase tracking-[.13em]">By Role</p>
-              <p className="mt-1.5 text-xs text-gray-300 flex flex-wrap gap-1.5">
+            <div className="bg-paper-raised border border-rule px-4 py-3.5">
+              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">By Role</p>
+              <p className="mt-1.5 text-xs text-ink-soft flex flex-wrap gap-1.5">
                 {Object.entries(usage.by_role).map(([role, count]) => (
-                  <span key={role} className={`inline-block px-1.5 py-0.5 rounded text-[10.5px] font-semibold border ${roleBadgeColor(role)}`}>
+                  <span key={role} className={`inline-block px-1.5 py-0.5 text-[10.5px] font-semibold border ${roleBadgeColor(role)}`}>
                     {role}: {count}
                   </span>
                 ))}
@@ -227,21 +227,21 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         )}
 
         {/* Pending requests */}
-        <div className="bg-surface-secondary border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-            <Users className="w-3.5 h-3.5 text-gray-400" />
-            <h2 className="text-[13px] font-semibold text-gray-200">Pending Requests ({pending.length})</h2>
+        <div className="bg-paper-raised border border-rule overflow-hidden">
+          <div className="px-4 py-3 border-b border-rule flex items-center gap-2">
+            <Users className="w-3.5 h-3.5 text-ink-faint" />
+            <h2 className="text-[13px] font-semibold text-ink">Pending Requests ({pending.length})</h2>
           </div>
           {pending.length === 0 ? (
-            <p className="px-4 py-6 text-[12.5px] text-gray-500 text-center">No pending requests.</p>
+            <p className="px-4 py-6 text-[12.5px] text-ink-faint text-center">No pending requests.</p>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-rule">
               {pending.map(req => (
                 <div key={req.user_id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[13px] text-white truncate">{req.email}</p>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
+                      <p className="text-[13px] text-ink truncate">{req.email}</p>
+                      <p className="text-[11px] text-ink-faint mt-0.5">
                         {req.investor_type} · {req.use_case}
                       </p>
                     </div>
@@ -254,26 +254,26 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                         onChange={e =>
                           setPendingDrafts(prev => ({ ...prev, [req.user_id]: e.target.value }))
                         }
-                        className="w-24 px-2 py-1.5 text-[11.5px] rounded-lg bg-surface border border-border text-gray-200 font-mono focus:outline-none focus:border-accent transition-colors"
+                        className="w-24 px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
                       />
                       <button
                         onClick={() => handleApprove(req)}
                         disabled={busyRows[req.user_id]}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11.5px] font-medium transition-all disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-ledger-pos/10 hover:bg-ledger-pos/20 border border-ledger-pos/30 text-ledger-pos text-[11.5px] font-medium transition-all disabled:opacity-50"
                       >
                         <Check className="w-3 h-3" /> Approve
                       </button>
                       <button
                         onClick={() => handleDeny(req)}
                         disabled={busyRows[req.user_id]}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-[11.5px] font-medium transition-all disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-ledger-neg/10 hover:bg-ledger-neg/20 border border-ledger-neg/30 text-ledger-neg text-[11.5px] font-medium transition-all disabled:opacity-50"
                       >
                         <X className="w-3 h-3" /> Deny
                       </button>
                     </div>
                   </div>
                   {rowErrors[req.user_id] && (
-                    <p className="text-[11px] text-red-400">{rowErrors[req.user_id]}</p>
+                    <p className="text-[11px] text-ledger-neg">{rowErrors[req.user_id]}</p>
                   )}
                 </div>
               ))}
@@ -282,17 +282,17 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
         </div>
 
         {/* All users */}
-        <div className="bg-surface-secondary border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <h2 className="text-[13px] font-semibold text-gray-200">All Users ({users.length})</h2>
+        <div className="bg-paper-raised border border-rule overflow-hidden">
+          <div className="px-4 py-3 border-b border-rule">
+            <h2 className="text-[13px] font-semibold text-ink">All Users ({users.length})</h2>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-rule">
             {users.map(u => (
               <div key={u.user_id} className="px-4 py-3 space-y-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex items-center gap-2">
-                    <p className="text-[13px] text-white truncate">{u.email}</p>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase border ${roleBadgeColor(u.role)}`}>
+                    <p className="text-[13px] text-ink truncate">{u.email}</p>
+                    <span className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase border ${roleBadgeColor(u.role)}`}>
                       {u.role}
                     </span>
                   </div>
@@ -301,7 +301,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     <select
                       value={roleDrafts[u.user_id] ?? u.role}
                       onChange={e => setRoleDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
-                      className="px-2 py-1.5 text-[11.5px] rounded-lg bg-surface border border-border text-gray-200 capitalize focus:outline-none focus:border-accent transition-colors"
+                      className="px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink capitalize focus:outline-none focus:border-accent-ink transition-colors"
                     >
                       {["pending", "approved", "admin", "denied"].map(r => (
                         <option key={r} value={r}>{r}</option>
@@ -310,7 +310,7 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                     <button
                       onClick={() => handleSetRole(u)}
                       disabled={busyRows[`role:${u.user_id}`] || (roleDrafts[u.user_id] ?? u.role) === u.role}
-                      className="px-2.5 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-[11.5px] font-medium transition-all disabled:opacity-50"
+                      className="px-2.5 py-1.5 bg-accent-ink-soft hover:opacity-80 border border-accent-ink text-accent-ink text-[11.5px] font-medium transition-all disabled:opacity-50"
                     >
                       Set Role
                     </button>
@@ -322,22 +322,22 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       placeholder={String(u.token_budget)}
                       value={grantDrafts[u.user_id] ?? ""}
                       onChange={e => setGrantDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
-                      className="w-24 px-2 py-1.5 text-[11.5px] rounded-lg bg-surface border border-border text-gray-200 font-mono focus:outline-none focus:border-accent transition-colors"
+                      className="w-24 px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
                     />
                     <button
                       onClick={() => handleGrant(u)}
                       disabled={busyRows[`grant:${u.user_id}`]}
-                      className="px-2.5 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent-hover text-[11.5px] font-medium transition-all disabled:opacity-50"
+                      className="px-2.5 py-1.5 bg-accent-ink hover:opacity-90 border border-accent-ink text-paper text-[11.5px] font-medium transition-all disabled:opacity-50"
                     >
                       Save
                     </button>
                   </div>
                 </div>
                 {rowErrors[`role:${u.user_id}`] && (
-                  <p className="text-[11px] text-red-400">{rowErrors[`role:${u.user_id}`]}</p>
+                  <p className="text-[11px] text-ledger-neg">{rowErrors[`role:${u.user_id}`]}</p>
                 )}
                 {rowErrors[`grant:${u.user_id}`] && (
-                  <p className="text-[11px] text-red-400">{rowErrors[`grant:${u.user_id}`]}</p>
+                  <p className="text-[11px] text-ledger-neg">{rowErrors[`grant:${u.user_id}`]}</p>
                 )}
               </div>
             ))}

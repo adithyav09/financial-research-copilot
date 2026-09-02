@@ -137,7 +137,7 @@ export default function MetricChart({ series, years, type }: Props) {
       <div ref={wrapperRef} className="w-full">
         <svg ref={svgRef} className="w-full overflow-visible" />
       </div>
-      <div ref={tooltipRef} className="fixed pointer-events-none z-50 opacity-0 bg-gray-900 border border-border rounded-lg px-3 py-1.5 text-xs text-gray-200 shadow-xl transition-opacity" />
+      <div ref={tooltipRef} className="fixed pointer-events-none z-50 opacity-0 bg-ink border border-rule-strong px-3 py-1.5 text-xs text-paper shadow-xl transition-opacity" />
     </div>
   );
 }

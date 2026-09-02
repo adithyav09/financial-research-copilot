@@ -115,8 +115,8 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Sea
     <div className="relative" ref={wrapperRef}>
       <div className="relative">
         {loading
-          ? <Loader2 className={`absolute top-1/2 -translate-y-1/2 text-gray-500 animate-spin pointer-events-none ${iconPos}`} />
-          : <Search className={`absolute top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none ${iconPos}`} />}
+          ? <Loader2 className={`absolute top-1/2 -translate-y-1/2 text-ink-soft animate-spin pointer-events-none ${iconPos}`} />
+          : <Search className={`absolute top-1/2 -translate-y-1/2 text-ink-soft pointer-events-none ${iconPos}`} />}
         <input
           type="text"
           value={query}
@@ -129,23 +129,23 @@ export default function TickerAutocomplete({ value, onChange, placeholder = "Sea
           autoFocus={autoFocus}
           autoComplete="off"
           spellCheck={false}
-          className={`w-full pr-3 bg-surface rounded-lg border border-border text-white placeholder-gray-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all ${inputSize}`}
+          className={`w-full pr-3 bg-paper border border-rule text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink focus:ring-1 focus:ring-accent/20 transition-all ${inputSize}`}
         />
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-secondary border border-border rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-50 max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-paper-raised border border-rule shadow-[0_16px_36px_-16px_rgba(20,22,26,0.30)] overflow-hidden z-50 max-h-60 overflow-y-auto">
           {results.map((entry, i) => (
             <button
               key={entry.cik_str}
               onMouseDown={(e) => { e.preventDefault(); select(entry); }}
               onMouseEnter={() => setHighlighted(i)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                i === highlighted ? "bg-accent/10" : "hover:bg-surface-tertiary"
+                i === highlighted ? "bg-accent-ink-soft" : "hover:bg-paper-raised"
               }`}
             >
-              <span className="font-mono text-xs font-bold text-accent w-14 shrink-0">{entry.ticker}</span>
-              <span className="text-xs text-gray-300 truncate">{entry.title}</span>
+              <span className="font-mono text-xs font-bold text-accent-ink w-14 shrink-0">{entry.ticker}</span>
+              <span className="text-xs text-ink truncate">{entry.title}</span>
             </button>
           ))}
         </div>

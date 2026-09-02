@@ -21,8 +21,8 @@ function pct(val?: number): string {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-center py-1">
-      <span className="text-[11px] text-gray-500">{label}</span>
-      <span className="text-[11px] text-gray-200 font-mono">{value}</span>
+      <span className="text-[11px] text-ink-soft">{label}</span>
+      <span className="text-[11px] text-ink font-mono">{value}</span>
     </div>
   );
 }
@@ -33,21 +33,21 @@ export default function MarketDataPanel({ data }: MarketDataPanelProps) {
     : null;
 
   return (
-    <div className="p-4 border-b border-border space-y-3">
-      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+    <div className="p-4 border-b border-rule space-y-3">
+      <p className="text-[11px] font-semibold text-ink-soft uppercase tracking-widest flex items-center gap-1.5">
         <BarChart2 className="w-3 h-3" /> Market Data
       </p>
 
       {/* Price header */}
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-xl font-bold text-white font-mono">
+          <p className="text-xl font-bold text-ink font-mono">
             {data.current_price != null ? `$${data.current_price.toFixed(2)}` : "—"}
           </p>
-          <p className="text-[11px] text-gray-500">{data.company_name ?? data.ticker}</p>
+          <p className="text-[11px] text-ink-soft">{data.company_name ?? data.ticker}</p>
         </div>
         {priceVs52High != null && (
-          <div className={`flex items-center gap-1 text-xs font-mono ${priceVs52High >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+          <div className={`flex items-center gap-1 text-xs font-mono ${priceVs52High >= 0 ? "text-ledger-pos" : "text-ledger-neg"}`}>
             {priceVs52High >= 0
               ? <TrendingUp className="w-3.5 h-3.5" />
               : <TrendingDown className="w-3.5 h-3.5" />}
@@ -58,12 +58,12 @@ export default function MarketDataPanel({ data }: MarketDataPanelProps) {
 
       {/* Analyst rec badge */}
       {data.analyst_recommendation && (
-        <div className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-accent/10 text-accent border border-accent/20">
+        <div className="inline-block px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-accent-ink-soft text-accent-ink border border-accent-ink">
           {data.analyst_recommendation}
         </div>
       )}
 
-      <div className="divide-y divide-border/50">
+      <div className="divide-y divide-rule/60">
         <div className="pb-2 space-y-0.5">
           <Row label="Market Cap" value={fmt(data.market_cap, "$")} />
           <Row label="P/E Ratio" value={fmt(data.pe_ratio, "", 1)} />

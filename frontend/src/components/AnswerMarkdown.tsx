@@ -51,10 +51,10 @@ export function CitationBadge({ num, citation, onOpen }: { num: number; citation
       <button
         ref={btnRef}
         onClick={handleClick}
-        className={`inline-flex items-center justify-center min-w-4 h-4 px-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
+        className={`inline-flex items-center justify-center min-w-4 h-4 px-0.5 text-[9px] font-bold border transition-colors cursor-pointer leading-none ${
           open
-            ? "bg-accent text-white border-accent"
-            : "bg-accent/20 text-accent-hover hover:bg-accent/40 border-accent/35"
+            ? "bg-accent-ink text-paper border-accent-ink"
+            : "bg-accent-ink-soft text-accent-ink hover:bg-accent-ink-soft border-accent-ink"
         }`}
       >
         {num}
@@ -64,18 +64,18 @@ export function CitationBadge({ num, citation, onOpen }: { num: number; citation
         <div
           ref={popRef}
           style={{ position: "fixed", top: pos.top, left: pos.left, transform: "translate(-50%, -100%)", zIndex: 9999 }}
-          className="w-80 rounded-xl border border-border bg-surface-secondary shadow-2xl shadow-black/70 text-left"
+          className="w-80 border border-rule bg-paper-raised shadow-[0_12px_30px_-12px_rgba(20,22,26,0.35)] text-left"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-border">
-            <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">
+          <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-rule">
+            <span className="text-[10px] font-semibold text-accent-ink uppercase tracking-wider">
               Source [{num}]
             </span>
             <a
               href={highlightUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] font-medium text-gray-300 hover:text-accent bg-surface px-2 py-1 rounded-md border border-border hover:border-accent/40 transition-all"
+              className="flex items-center gap-1 text-[10px] font-medium text-ink hover:text-accent-ink bg-paper px-2 py-1 border border-rule hover:border-accent-ink transition-all"
             >
               <ExternalLink className="w-3 h-3" />
               Open &amp; highlight in filing
@@ -83,11 +83,11 @@ export function CitationBadge({ num, citation, onOpen }: { num: number; citation
           </div>
           {/* Excerpt */}
           <div className="px-3 py-2.5">
-            <p className="text-xs text-gray-300 leading-relaxed line-clamp-6">{citation.text}</p>
-            <p className="text-[10px] text-gray-600 mt-2 truncate">{citation.source}</p>
+            <p className="text-xs text-ink leading-relaxed line-clamp-6">{citation.text}</p>
+            <p className="text-[10px] text-ink-faint mt-2 truncate">{citation.source}</p>
           </div>
           {/* Arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface-secondary border-r border-b border-border rotate-45 -mt-[5px]" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-paper-raised border-r border-b border-rule rotate-45 -mt-[5px]" />
         </div>
       )}
     </span>
@@ -98,16 +98,16 @@ export type CitationClickHandler = (num: number, citation: Citation) => void;
 
 function makeMarkdownComponents(citations: Citation[], onCitationClick?: CitationClickHandler) {
   return {
-    h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold text-white mt-4 mb-1.5">{children}</h1>,
-    h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-semibold text-white mt-3 mb-1">{children}</h2>,
-    h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-semibold text-gray-200 mt-2 mb-0.5">{children}</h3>,
+    h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold text-ink mt-4 mb-1.5">{children}</h1>,
+    h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-semibold text-ink mt-3 mb-1">{children}</h2>,
+    h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-semibold text-ink mt-2 mb-0.5">{children}</h3>,
     p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
     ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5">{children}</ul>,
     ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5">{children}</ol>,
     li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
-    strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-white">{children}</strong>,
-    em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-300">{children}</em>,
-    code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-surface px-1 py-0.5 rounded text-accent">{children}</code>,
+    strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-ink">{children}</strong>,
+    em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-ink">{children}</em>,
+    code: ({ children }: { children?: React.ReactNode }) => <code className="font-mono text-xs bg-paper px-1 py-0.5 text-accent-ink">{children}</code>,
     // Custom span handles our cit-N placeholders
     span: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
       if (typeof className === "string" && className.startsWith("cit-")) {

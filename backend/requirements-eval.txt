@@ -1,0 +1,7 @@
+# Offline evaluation harness (evals/). NOT required to run the app — install only
+# when running evals:  pip install -r requirements-eval.txt  (into backend/.venv)
+#
+# RAGAS reuses the app's langchain-openai ChatOpenAI/OpenAIEmbeddings (already in
+# requirements.txt), so no extra provider SDKs are needed here.
+ragas>=0.2,<0.3
+datasets>=2.14

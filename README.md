@@ -59,7 +59,8 @@ financial-research-copilot/
 ├── docs/
 │   ├── architecture.md         # System design and data flow
 │   ├── api.md                  # Full API reference
-│   └── deployment.md           # Local, Docker, and production setup
+│   ├── deployment.md           # Local, Docker, and production setup
+│   └── product-guidelines.md   # Canonical scope & governance boundaries
 │
 ├── scripts/
 │   ├── reset_chroma.py         # Wipe all ChromaDB collections
@@ -174,6 +175,53 @@ make test
 
 ---
 
+## Observability
+
+Every research request gets one **`trace_id`** that flows through the API, retrieval,
+model call, tools, and the final response — so a rendered answer can be matched back
+to backend logs. It runs with **no external infrastructure**: structured events are
+emitted as one JSON line per stage to stdout, and metrics are aggregated in-process.
+
+**What's instrumented** (`backend/app/core/observability.py`):
+
+- **Lifecycle events**: `request_received`, `retrieval_started/completed`,
+  `model_call_started/completed`, `tool_call_started/completed/failed`,
+  `answer_generated`, `request_completed/failed`.
+- **Structured log fields**: `timestamp`, `level`, `event_name`, `trace_id`,
+  `component`, `duration_ms`, `success`, `error_type`, `model`, `prompt_version`,
+  `input_tokens`, `output_tokens`, `estimated_cost_usd`, `retrieved_document_ids`,
+  `retrieved_chunk_count`, `citation_count`, and `release`/`version`.
+- **Metrics** (OpenTelemetry-shaped counters/histograms): request count,
+  success/failure, per-stage + end-to-end latency, retries, tool failures, token
+  usage, and estimated model cost.
+- **Redaction**: API keys, `Authorization`/`Bearer` headers, secrets, and (optionally)
+  prompt/question text are scrubbed before any event is written.
+
+**Trace propagation.** Send an `X-Trace-Id` request header to correlate a client
+call with backend logs; if absent, the server mints one. It's always echoed on the
+`X-Trace-Id` response header and returned in the query response body (`trace_id`),
+which the UI shows under each answer's **Details** disclosure.
+
+**Local usage:**
+
+```bash
+# tail structured events while you query (JSON, one per line)
+make dev-backend
+
+# aggregate metrics snapshot (counts/latencies only — no request content)
+curl -s localhost:8000/api/metrics | jq
+```
+
+Configure via `backend/.env` (see `.env.example`): `LOG_LEVEL`, `LOG_JSON`
+(set `false` for human-readable dev logs), `RELEASE_VERSION`, `REDACT_PROMPT_CONTENT`.
+
+The interfaces are backend-agnostic: `observability.add_sink()` and the metrics
+registry are the single seams where a hosted backend (Langfuse, an OTLP collector,
+Prometheus) plugs in later without touching any call site. Arize AX span export is a
+separate, already-wired optional layer (`app/core/tracing.py`, `ARIZE_*` env).
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -194,6 +242,7 @@ make test
 - [Architecture & data flow](docs/architecture.md)
 - [API reference](docs/api.md)
 - [Deployment guide](docs/deployment.md)
+- [Product guidelines (scope & governance)](docs/product-guidelines.md)
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 

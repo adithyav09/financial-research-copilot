@@ -30,6 +30,8 @@ Backend tool config (pytest markers, black, ruff) lives in `backend/pyproject.to
 
 ## Architecture
 
+> Human-facing version with the system diagram: [`docs/architecture.md`](docs/architecture.md).
+
 Full-stack RAG assistant answering plain-English questions about public companies from SEC filings + live market data. FastAPI backend, React/Vite frontend, ChromaDB vector store, Supabase (Postgres) for auth + metadata.
 
 ### The central concept: live vs. filing question routing

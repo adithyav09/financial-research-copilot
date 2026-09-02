@@ -30,6 +30,10 @@ async def get_filing_passage(
         resp = (
             supabase.table("document_chunks")
             .select("content, metadata")
+            # Scope to the caller's own chunks. The backend uses the service-role
+            # key (RLS bypassed), so this filter is what stops user A from reading
+            # user B's ingested passages. user_id comes from the verified session.
+            .eq("metadata->>user_id", str(user.user_id))
             .eq("metadata->>ticker", t)
             .eq("metadata->>filing_type", filing_type)
             .in_("metadata->>chunk_index", wanted)
@@ -53,6 +57,7 @@ async def get_filing_passage(
         job = (
             supabase.table("ingestion_jobs")
             .select("chunk_count")
+            .eq("user_id", user.user_id)
             .eq("ticker", t)
             .eq("filing_type", filing_type)
             .eq("status", "ready")

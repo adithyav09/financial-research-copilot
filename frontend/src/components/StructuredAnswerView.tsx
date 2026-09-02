@@ -43,20 +43,20 @@ function AutoChart({ spec, xbrl }: { spec: NonNullable<StructuredAnswer["chart"]
   if (years.length < 2) return null; // a one-year "trend" chart is noise
 
   return (
-    <div className="rounded-xl border border-border bg-surface-secondary px-[18px] pt-3.5 pb-2.5">
+    <div className="border border-rule bg-paper-raised px-[18px] pt-3.5 pb-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-300">{spec.title}</span>
-        <span className="font-mono text-[10px] text-gray-600 border border-border rounded px-1.5 py-0.5">
+        <span className="text-xs font-semibold text-ink">{spec.title}</span>
+        <span className="font-mono text-[10px] text-ink-faint border border-rule px-1.5 py-0.5">
           auto · SEC XBRL
         </span>
       </div>
       <div className="mt-1">
         <MetricChart series={series} years={years} type="bar" />
       </div>
-      <p className="mt-1 text-[10.5px] text-gray-600">
+      <p className="mt-1 text-[10.5px] text-ink-faint">
         {spec.reason ? `Shown because ${spec.reason}` : "Chart generated from your question"}
         {" · "}
-        <button onClick={() => setHidden(true)} className="underline hover:text-gray-400">Hide</button>
+        <button onClick={() => setHidden(true)} className="underline hover:text-ink-soft">Hide</button>
       </p>
     </div>
   );
@@ -78,16 +78,16 @@ export default function StructuredAnswerView({ structured, citations, xbrlData, 
     citations.map(c => c.source.split("—")[0]?.trim()).filter(Boolean)
   );
   const deltaColor = (dir?: string | null) =>
-    dir === "up" ? "text-emerald-400" : dir === "down" ? "text-red-400" : "text-gray-400";
+    dir === "up" ? "text-ledger-pos" : dir === "down" ? "text-ledger-neg" : "text-ink-soft";
 
   return (
     <div className="flex flex-col gap-2.5">
       {/* Takeaway */}
-      <div className="rounded-xl border border-border bg-surface-secondary px-[18px] py-4">
-        <p className="mb-1.5 text-[10px] font-bold text-accent-hover uppercase tracking-[.14em]">Takeaway</p>
-        <p className="text-[15px] font-medium text-gray-100 leading-relaxed">{structured.takeaway}</p>
+      <div className="border border-rule bg-paper-raised px-[18px] py-4">
+        <p className="mb-1.5 text-[10px] font-bold text-accent-ink uppercase tracking-[.14em]">Takeaway</p>
+        <p className="text-[15px] font-medium text-ink leading-relaxed">{structured.takeaway}</p>
         {citations.length > 0 && (
-          <p className="mt-2 text-[11px] text-gray-500">
+          <p className="mt-2 text-[11px] text-ink-soft">
             Based on {citations.length} source{citations.length !== 1 ? "s" : ""}
             {filingSources.size > 1 ? ` across ${filingSources.size} documents` : ""}
           </p>
@@ -100,16 +100,16 @@ export default function StructuredAnswerView({ structured, citations, xbrlData, 
           {structured.metrics.map((m, i) => {
             const cite = m.citation != null ? citations[m.citation - 1] : undefined;
             return (
-              <div key={i} className="rounded-[10px] border border-border bg-surface-secondary px-3.5 py-3">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{m.label}</p>
+              <div key={i} className="border border-rule bg-paper-raised px-3.5 py-3">
+                <p className="text-[10px] font-semibold text-ink-soft uppercase tracking-wider">{m.label}</p>
                 <div className="flex items-baseline gap-1.5 mt-1.5 flex-wrap">
-                  <span className="font-mono text-[19px] font-bold text-white">{m.value}</span>
+                  <span className="font-mono text-[19px] font-bold text-ink">{m.value}</span>
                   {m.delta && (
                     <span className={`text-[11px] font-semibold ${deltaColor(m.delta_direction)}`}>{m.delta}</span>
                   )}
                 </div>
                 {m.citation != null && (
-                  <p className="mt-1.5 font-mono text-[9.5px] text-gray-600 truncate" title={cite?.source}>
+                  <p className="mt-1.5 font-mono text-[9.5px] text-ink-faint truncate" title={cite?.source}>
                     [{m.citation}]{cite ? ` ${cite.source.split("—")[0]?.trim()}` : ""}
                   </p>
                 )}
@@ -120,7 +120,7 @@ export default function StructuredAnswerView({ structured, citations, xbrlData, 
       )}
 
       {/* Narrative */}
-      <div className="rounded-xl border border-border bg-surface-secondary px-[18px] py-4 text-sm leading-[1.7] text-gray-300">
+      <div className="border border-rule bg-paper-raised px-[18px] py-4 text-sm leading-[1.7] text-ink">
         <AnswerMarkdown content={structured.narrative} citations={citations} onCitationClick={onCitationClick} />
       </div>
 

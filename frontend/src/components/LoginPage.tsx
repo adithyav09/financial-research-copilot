@@ -19,7 +19,7 @@ function GoogleIcon() {
  * Design 1i: sign-in with labeled fields, honest inline validation, and the
  * approval process explained up front instead of discovered as a dead end.
  */
-export default function LoginPage() {
+export default function LoginPage({ onBack }: { onBack?: () => void }) {
   const { signInWithGoogle, signInWithGitHub, signInWithPassword, signUpWithPassword } = useAuth();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -78,32 +78,40 @@ export default function LoginPage() {
   };
 
   const fieldClass = (invalid: boolean) =>
-    `w-full px-3.5 py-2.5 rounded-[10px] border bg-surface-secondary text-[13px] text-white placeholder-gray-600 focus:outline-none focus:border-accent transition-colors ${
-      invalid ? "border-amber-600" : "border-border"
+    `w-full px-3.5 py-2.5 border bg-paper-raised text-[13px] text-ink placeholder-ink-faint focus:outline-none focus:border-accent-ink transition-colors ${
+      invalid ? "border-amber-600" : "border-rule"
     }`;
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-paper flex items-center justify-center px-4 py-10">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="absolute left-5 top-5 text-xs text-ink-soft hover:text-ink transition-colors"
+        >
+          ← Back to home
+        </button>
+      )}
       <div className="w-full max-w-4xl flex flex-col md:flex-row gap-8 md:gap-6 justify-center">
         {/* Sign-in column */}
         <div className="w-full max-w-[400px] mx-auto md:mx-0 shrink-0">
           <div className="flex items-center justify-center gap-2.5 mb-1.5">
             <ThesisMark size={34} />
-            <span className="text-[19px] font-semibold text-white tracking-tight">Thesis</span>
+            <span className="font-serif text-[19px] font-semibold text-ink">Thesis</span>
           </div>
-          <p className="mb-5 text-[12.5px] text-gray-500 text-center">Company research you can verify.</p>
+          <p className="mb-5 text-[12.5px] text-ink-soft text-center">Company research you can verify.</p>
 
           {/* Mode tabs */}
-          <div className="flex border border-border rounded-[10px] p-[3px] bg-surface-secondary mb-4">
+          <div className="flex border border-rule p-[3px] bg-paper-raised mb-4">
             {(["signin", "signup"] as const).map(m => (
               <button
                 key={m}
                 type="button"
                 onClick={() => switchMode(m)}
-                className={`flex-1 py-[7px] rounded-lg text-[12.5px] text-center transition-all ${
+                className={`flex-1 py-[7px] text-[12.5px] text-center transition-all ${
                   mode === m
-                    ? "font-semibold text-white bg-surface-tertiary border border-[#2a2f3c]"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? "font-semibold text-ink bg-paper-raised border border-rule-strong"
+                    : "text-ink-soft hover:text-ink"
                 }`}
               >
                 {m === "signin" ? "Sign in" : "Create account"}
@@ -113,7 +121,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <p className="mb-1.5 text-[11px] font-semibold text-gray-400">Email</p>
+              <p className="mb-1.5 text-[11px] font-semibold text-ink-soft">Email</p>
               <input
                 type="email"
                 required
@@ -125,7 +133,7 @@ export default function LoginPage() {
                 className={fieldClass(!!emailError)}
               />
               {emailError && (
-                <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1.5">
+                <p className="mt-1.5 text-[11px] text-stamp flex items-center gap-1.5">
                   <AlertCircle className="w-3 h-3 shrink-0" />{emailError}
                 </p>
               )}
@@ -133,9 +141,9 @@ export default function LoginPage() {
 
             <div>
               <div className="flex justify-between mb-1.5">
-                <p className="text-[11px] font-semibold text-gray-400">Password</p>
+                <p className="text-[11px] font-semibold text-ink-soft">Password</p>
                 {mode === "signin" && (
-                  <button type="button" onClick={handleForgot} className="text-[11px] text-accent-hover hover:underline">
+                  <button type="button" onClick={handleForgot} className="text-[11px] text-accent-ink hover:underline">
                     Forgot?
                   </button>
                 )}
@@ -151,44 +159,44 @@ export default function LoginPage() {
                 className={fieldClass(!!error)}
               />
               {error && (
-                <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1.5">
+                <p className="mt-1.5 text-[11px] text-stamp flex items-center gap-1.5">
                   <AlertCircle className="w-3 h-3 shrink-0" />{error}
                 </p>
               )}
-              {info && <p className="mt-1.5 text-[11px] text-emerald-400">{info}</p>}
+              {info && <p className="mt-1.5 text-[11px] text-ledger-pos">{info}</p>}
             </div>
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-[11px] rounded-[10px] bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-[13px] font-semibold transition-all"
+              className="w-full py-[11px] bg-accent-ink hover:opacity-90 disabled:opacity-50 text-paper text-[13px] font-semibold transition-all"
             >
               {submitting ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
             </button>
           </form>
 
           <div className="flex items-center gap-3 my-4">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-[11px] text-gray-600">or</span>
-            <div className="h-px flex-1 bg-border" />
+            <div className="h-px flex-1 bg-rule" />
+            <span className="text-[11px] text-ink-faint">or</span>
+            <div className="h-px flex-1 bg-rule" />
           </div>
 
           <div className="flex gap-2.5">
             <button
               onClick={signInWithGoogle}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-border bg-surface-secondary hover:bg-surface-tertiary text-gray-200 text-[12.5px] font-medium transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-rule bg-paper-raised hover:bg-paper-raised text-ink text-[12.5px] font-medium transition-all"
             >
               <GoogleIcon /> Google
             </button>
             <button
               onClick={signInWithGitHub}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-border bg-surface-secondary hover:bg-surface-tertiary text-gray-200 text-[12.5px] font-medium transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-rule bg-paper-raised hover:bg-paper-raised text-ink text-[12.5px] font-medium transition-all"
             >
               <Github className="w-4 h-4" /> GitHub
             </button>
           </div>
 
-          <p className="mt-5 text-[10.5px] text-gray-600 text-center leading-relaxed">
+          <p className="mt-5 text-[10.5px] text-ink-faint text-center leading-relaxed">
             By continuing you agree to the Terms of Use and Privacy Policy.
             <br />
             Research tool · not investment advice.
@@ -196,10 +204,10 @@ export default function LoginPage() {
         </div>
 
         {/* After-sign-up explainer (design 1i right column) */}
-        <div className="hidden md:block w-px bg-border" />
+        <div className="hidden md:block w-px bg-rule" />
         <div className="hidden md:flex w-[380px] shrink-0 flex-col justify-center">
-          <p className="mb-1 text-[10.5px] font-bold text-gray-500 uppercase tracking-[.13em]">After sign-up</p>
-          <h3 className="mb-4 text-base font-semibold text-white tracking-tight">You're in the review queue</h3>
+          <p className="mb-1 text-[10.5px] font-bold text-ink-soft uppercase tracking-[.13em]">After sign-up</p>
+          <h3 className="mb-4 font-serif text-lg font-semibold text-ink">You're in the review queue</h3>
           <div className="flex flex-col">
             {[
               { state: "done", title: "Create your account", body: "Email + password, or Google/GitHub." },
@@ -210,20 +218,20 @@ export default function LoginPage() {
                 <div className="flex flex-col items-center">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                     step.state === "done" ? "bg-emerald-500/15 border border-emerald-500/40"
-                    : step.state === "active" ? "bg-accent/15 border border-accent/45"
-                    : "border border-dashed border-[#2a2f3c]"
+                    : step.state === "active" ? "bg-accent-ink-soft border border-accent-ink"
+                    : "border border-dashed border-rule-strong"
                   }`}>
                     {step.state === "done" ? (
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                     ) : (
-                      <span className={`block rounded-full ${step.state === "active" ? "w-2 h-2 bg-accent-hover" : "w-1.5 h-1.5 bg-gray-700"}`} />
+                      <span className={`block rounded-full ${step.state === "active" ? "w-2 h-2 bg-accent-ink" : "w-1.5 h-1.5 bg-rule-strong"}`} />
                     )}
                   </div>
-                  {i < arr.length - 1 && <div className="w-px flex-1 bg-border my-1" />}
+                  {i < arr.length - 1 && <div className="w-px flex-1 bg-rule my-1" />}
                 </div>
                 <div className={i < arr.length - 1 ? "pb-4" : ""}>
-                  <p className={`text-[13px] font-semibold ${step.state === "todo" ? "text-gray-500" : "text-gray-200"}`}>{step.title}</p>
-                  <p className="mt-0.5 text-[11.5px] text-gray-500 leading-relaxed">{step.body}</p>
+                  <p className={`text-[13px] font-semibold ${step.state === "todo" ? "text-ink-soft" : "text-ink"}`}>{step.title}</p>
+                  <p className="mt-0.5 text-[11.5px] text-ink-soft leading-relaxed">{step.body}</p>
                 </div>
               </div>
             ))}

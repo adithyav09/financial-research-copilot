@@ -76,19 +76,19 @@ export default function FilingViewer({
   };
 
   return (
-    <div className="w-[520px] shrink-0 border-l border-border bg-surface-secondary flex flex-col min-h-0">
+    <div className="w-[520px] shrink-0 border-l border-rule bg-paper-raised flex flex-col min-h-0">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-border">
+      <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-rule">
         <div className="flex gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center shrink-0">
-            <FileText className="w-4 h-4 text-gray-400" />
+          <div className="w-8 h-8 bg-paper border border-rule flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-ink-soft" />
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-white truncate">
+            <p className="text-[13px] font-semibold text-ink truncate">
               {companyName ?? ticker} — Form {data?.filing_type ?? citation.filing_type ?? "10-K"}
               {data?.filing_year ? ` · FY${data.filing_year}` : ""}
             </p>
-            <p className="text-[11px] text-gray-500 truncate">
+            <p className="text-[11px] text-ink-soft truncate">
               {data?.filing_date ? `Filed ${data.filing_date} · ` : ""}SEC EDGAR
               {(data?.sec_url ?? citation.url) && (
                 <>
@@ -97,7 +97,7 @@ export default function FilingViewer({
                     href={data?.sec_url ?? citation.url ?? "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-accent-hover hover:underline inline-flex items-center gap-0.5"
+                    className="text-accent-ink hover:underline inline-flex items-center gap-0.5"
                   >
                     Open on SEC.gov <ExternalLink className="w-2.5 h-2.5" />
                   </a>
@@ -106,15 +106,15 @@ export default function FilingViewer({
             </p>
           </div>
         </div>
-        <button onClick={onClose} className="p-1 text-gray-500 hover:text-gray-200 transition-colors shrink-0" title="Close (esc)">
+        <button onClick={onClose} className="p-1 text-ink-soft hover:text-ink transition-colors shrink-0" title="Close (esc)">
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Cited-passage navigation */}
       {filingCitations.length > 1 && (
-        <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-accent/5">
-          <span className="text-[11px] text-blue-300">
+        <div className="flex items-center justify-between px-5 py-2.5 border-b border-rule bg-accent-ink-soft">
+          <span className="text-[11px] text-accent-ink">
             Cited passage <strong>{pos + 1} of {filingCitations.length}</strong> — supports source{" "}
             <span className="font-mono font-bold">[{citationNumber}]</span>
           </span>
@@ -122,14 +122,14 @@ export default function FilingViewer({
             <button
               disabled={!prev}
               onClick={() => prev && onNavigate(prev.citation, prev.number)}
-              className="w-6 h-6 rounded-md border border-border flex items-center justify-center text-gray-500 hover:text-gray-200 hover:border-accent/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="w-6 h-6 border border-rule flex items-center justify-center text-ink-soft hover:text-ink hover:border-accent-ink disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               disabled={!next}
               onClick={() => next && onNavigate(next.citation, next.number)}
-              className="w-6 h-6 rounded-md border border-accent/40 bg-accent/10 flex items-center justify-center text-accent-hover hover:bg-accent/20 disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-transparent disabled:border-border disabled:text-gray-500 transition-all"
+              className="w-6 h-6 border border-accent-ink bg-accent-ink-soft flex items-center justify-center text-accent-ink hover:bg-accent-ink-soft disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-transparent disabled:border-rule disabled:text-ink-soft transition-all"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -138,14 +138,14 @@ export default function FilingViewer({
       )}
 
       {/* Passage body */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 text-[13px] leading-[1.85] text-gray-400">
+      <div className="flex-1 overflow-y-auto px-6 py-5 text-[13px] leading-[1.85] text-ink-soft">
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-600" />
+            <Loader2 className="w-5 h-5 animate-spin text-ink-faint" />
           </div>
         )}
         {error && (
-          <p className="text-xs text-red-400 leading-relaxed">
+          <p className="text-xs text-ledger-neg leading-relaxed">
             {error}. You can still{" "}
             {citation.url ? (
               <a href={citation.url} target="_blank" rel="noopener noreferrer" className="underline">read it on SEC.gov</a>
@@ -157,9 +157,10 @@ export default function FilingViewer({
             <div
               key={p.chunk_index}
               ref={targetRef}
-              className="relative mb-3 px-3.5 py-2.5 rounded-lg bg-accent/[.13] border-l-[3px] border-accent text-blue-100"
+              className="relative mb-3 px-3.5 py-2.5 border-l-[3px] text-ink"
+              style={{ backgroundColor: "var(--hl)", borderLeftColor: "var(--hl-edge)" }}
             >
-              <span className="absolute top-2 right-2.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-0.5 rounded bg-accent text-white text-[9px] font-bold">
+              <span className="absolute top-2 right-2.5 inline-flex items-center justify-center min-w-[17px] h-[17px] px-0.5 bg-accent-ink text-paper text-[9px] font-bold">
                 {citationNumber}
               </span>
               <p className="whitespace-pre-line">{p.content}</p>
@@ -171,24 +172,24 @@ export default function FilingViewer({
       </div>
 
       {/* Footer actions */}
-      <div className="flex items-center gap-2 px-5 py-3 border-t border-border">
+      <div className="flex items-center gap-2 px-5 py-3 border-t border-rule">
         <button
           onClick={copyQuote}
           disabled={!data}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-[11.5px] text-gray-300 hover:border-accent/40 hover:text-white disabled:opacity-40 transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-rule text-[11.5px] text-ink hover:border-accent-ink hover:text-ink disabled:opacity-40 transition-all"
         >
-          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          {copied ? <Check className="w-3 h-3 text-ledger-pos" /> : <Copy className="w-3 h-3" />}
           {copied ? "Copied" : "Copy quote"}
         </button>
         <button
           onClick={askAbout}
           disabled={!data}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-[11.5px] text-gray-300 hover:border-accent/40 hover:text-white disabled:opacity-40 transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-rule text-[11.5px] text-ink hover:border-accent-ink hover:text-ink disabled:opacity-40 transition-all"
         >
           <MessageSquarePlus className="w-3 h-3" />
           Ask about this passage
         </button>
-        <span className="ml-auto text-[10.5px] text-gray-600">esc closes</span>
+        <span className="ml-auto text-[10.5px] text-ink-faint">esc closes</span>
       </div>
     </div>
   );
