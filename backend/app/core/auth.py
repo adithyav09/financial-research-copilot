@@ -18,33 +18,18 @@ bearer_scheme = HTTPBearer(auto_error=True)
 
 
 class AuthenticatedUser:
-    """Represents a verified Supabase user with their profile role and token usage."""
+    """A verified Supabase user. Usage limits are now shared/app-wide (see
+    app/core/budget.py), so the user object no longer carries a per-user budget —
+    only identity and whether they are an admin."""
 
-    def __init__(
-        self,
-        user_id: str,
-        email: str,
-        role: str,
-        token_budget: int = 50000,
-        tokens_consumed: int = 0,
-    ) -> None:
+    def __init__(self, user_id: str, email: str, role: str) -> None:
         self.user_id = user_id
         self.email = email
         self.role = role
-        self.token_budget = token_budget
-        self.tokens_consumed = tokens_consumed
-
-    @property
-    def is_approved(self) -> bool:
-        return self.role in ("approved", "admin")
 
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
-
-    @property
-    def is_over_budget(self) -> bool:
-        return self.tokens_consumed >= self.token_budget
 
 
 async def _verify_token_with_supabase(token: str) -> dict:
@@ -94,66 +79,35 @@ async def _verify_token_with_supabase(token: str) -> dict:
         )
 
 
-def _load_profile(user_id: str) -> dict:
-    """
-    Load the user's profile row from Supabase (service role bypasses RLS).
+def _get_or_create_profile(user_id: str, email: str) -> dict:
+    """Load the user's profile row, creating it on first sight.
 
-    Args:
-        user_id: UUID from JWT sub claim
-
-    Returns:
-        Profile row dict
-
-    Raises:
-        HTTPException 401 if profile does not exist
+    Access approval was removed, so every authenticated user gets a usable profile
+    immediately — no admin step. We never overwrite an existing row (so an admin's
+    role is preserved); on a create race we just re-read. Service role bypasses RLS.
     """
     supabase = get_supabase_client()
     result = (
-        supabase.table("profiles")
-        .select("id, email, role, token_budget, tokens_consumed")
-        .eq("id", user_id)
-        .single()
-        .execute()
+        supabase.table("profiles").select("id, email, role").eq("id", user_id).limit(1).execute()
     )
-    if not result.data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User profile not found. Please sign in again.",
+    if result.data:
+        return result.data[0]
+    try:
+        created = (
+            supabase.table("profiles")
+            .insert({"id": user_id, "email": email, "role": "approved"})
+            .execute()
         )
-    return result.data
-
-
-def get_tokens_consumed(user_id: str) -> int:
-    """
-    Sum the user's consumption from the token_usage ledger (the source of truth).
-
-    profiles.token_budget is the cap; token_usage rows are the debits. Returns 0
-    on any failure so a transient error can't spuriously lock a user out — the
-    per-query budget check fails open, and the ledger is authoritative once
-    reachable again.
-    """
-    try:
-        supabase = get_supabase_client()
-        result = supabase.rpc(
-            "get_tokens_consumed", {"p_user_id": str(user_id)}
-        ).execute()
-        return int(result.data or 0)
+        if created.data:
+            return created.data[0]
     except Exception:
-        return 0
-
-
-def get_all_token_totals() -> dict:
-    """
-    Return {user_id: tokens_consumed} for every user with ledger rows, in one
-    round trip. Used by the admin user list and usage summary so they don't
-    issue a per-user sum. Users with no rows are simply absent (treat as 0).
-    """
-    try:
-        supabase = get_supabase_client()
-        result = supabase.rpc("get_all_token_totals").execute()
-        return {row["user_id"]: int(row["tokens_consumed"] or 0) for row in (result.data or [])}
-    except Exception:
-        return {}
+        # A concurrent request or a DB signup trigger already created it — re-read.
+        existing = (
+            supabase.table("profiles").select("id, email, role").eq("id", user_id).limit(1).execute()
+        )
+        if existing.data:
+            return existing.data[0]
+    return {"id": user_id, "email": email, "role": "approved"}
 
 
 async def get_current_user(
@@ -170,13 +124,12 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token missing user id.",
         )
-    profile = _load_profile(user_id)
+    email = supabase_user.get("email", "") or ""
+    profile = _get_or_create_profile(user_id, email)
     return AuthenticatedUser(
         user_id=user_id,
-        email=profile.get("email", ""),
-        role=profile.get("role", "pending"),
-        token_budget=profile.get("token_budget", 50000),
-        tokens_consumed=get_tokens_consumed(user_id),
+        email=profile.get("email") or email,
+        role=profile.get("role", "approved"),
     )
 
 
@@ -184,14 +137,13 @@ async def require_approved(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     """
-    FastAPI dependency: require an approved or admin role.
-    Raises 403 if the user's role is pending or denied.
+    FastAPI dependency for the core copilot routes.
+
+    Access approval was removed: every *authenticated* user may use the copilot
+    immediately. This is kept as a dependency alias (so the routes stay wired and
+    still require a valid session) — it no longer gates on role. Usage is bounded
+    by the shared budget + per-user daily/rate limits enforced at call time.
     """
-    if not user.is_approved:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is pending approval. Please wait for an admin to grant access.",
-        )
     return user
 
 

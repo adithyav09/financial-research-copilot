@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
@@ -146,27 +146,14 @@ class UserProfileResponse(BaseModel):
     user_id: str
     email: Optional[str] = None
     role: str
-    token_budget: int = 50000
-    tokens_consumed: int = 0
     created_at: Optional[str] = None
-
-
-class AccessRequestPayload(BaseModel):
-    use_case: str
-    investor_type: str
-
-
-class AdminApprovePayload(BaseModel):
-    action: str
-    token_budget: Optional[int] = None
+    # Current-month spend (admin visibility only; 0 for the self /auth/me call).
+    month_spent_usd: float = 0.0
+    month_requests: int = 0
 
 
 class AdminUserListResponse(BaseModel):
     users: List[UserProfileResponse]
-
-
-class GrantTokensPayload(BaseModel):
-    token_budget: int = Field(..., ge=0)
 
 
 class SetRolePayload(BaseModel):
@@ -174,11 +161,16 @@ class SetRolePayload(BaseModel):
 
 
 class UsageSummaryResponse(BaseModel):
+    """Global, application-wide monthly budget status (no per-user budgets)."""
     total_users: int
-    total_tokens_consumed: int
-    total_token_budget: int
     by_role: Dict[str, int]
-    max_token_budget_grant: int
+    month_spent_usd: float
+    monthly_budget_usd: float
+    month_remaining_usd: float
+    month_requests: int
+    # Effective per-user safeguards, surfaced so the admin sees the active config.
+    user_daily_budget_usd: float
+    rate_limit_per_minute: int
 
 
 class MarketDataResponse(BaseModel):

@@ -14,7 +14,33 @@ class Settings(BaseSettings):
     chunk_overlap: int = 200
     retrieval_k: int = 5
     fred_api_key: str = ""
-    max_token_budget_grant: int = 200000
+
+    # --- Shared usage/cost controls (replaces per-user token budgets) ---------
+    # One application-wide monthly dollar budget for all model spend. Derived by
+    # summing timestamped usage in the current calendar month — no manual reset.
+    monthly_budget_usd: float = 20.0
+    # Lightweight per-user safeguards so one user can't drain the shared budget.
+    user_daily_budget_usd: float = 1.0     # per-user daily dollar cap (0 = off)
+    user_daily_token_limit: int = 0        # optional per-user daily token cap (0 = off)
+    rate_limit_per_minute: int = 20        # per-user request rate limit (0 = off)
+    # Conservative per-query cost reserved up front so concurrent requests can't
+    # overspend before their actual cost is known; reconciled to actual after.
+    max_cost_per_query_usd: float = 0.05
+    # Optional model-price overrides ($ per 1K tokens) for the active llm_model.
+    # When 0, pricing falls back to the observability price table. Prompt and
+    # completion are priced separately so cost isn't a naive token count.
+    cost_input_per_1k: float = 0.0
+    cost_output_per_1k: float = 0.0
+
+    # --- Budget policy (explicit + configurable) --------------------------------
+    # On a budget-infra error (DB/RPC unavailable): True = allow the request and
+    # record usage afterward (demo stays up); False = block with 503 (strict).
+    budget_fail_open: bool = True
+    # Whether ingestion (embedding) spend counts against the shared budget.
+    ingest_counts_toward_budget: bool = True
+
+    # --- Online evaluators (cheap, non-LLM per-request quality signals) ----------
+    online_eval_enabled: bool = True
 
     # Observability (structured logging + metrics). Works with no external infra.
     log_level: str = "INFO"          # DEBUG | INFO | WARNING | ERROR

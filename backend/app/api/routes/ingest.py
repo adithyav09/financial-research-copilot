@@ -6,6 +6,8 @@ from app.services.sec_service import fetch_latest_10k, fetch_latest_10q
 from app.services.ingestion_service import ingest_filing
 from app.core.database import get_supabase_client
 from app.core.auth import AuthenticatedUser, require_approved
+from app.core.config import settings
+from app.core import budget
 
 router = APIRouter()
 
@@ -17,8 +19,16 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
     if not ticker:
         raise HTTPException(status_code=400, detail="Ticker is required")
 
+    # Per-user rate limit always applies. Whether ingestion (embedding) spend
+    # counts against the shared dollar budget is a documented policy flag
+    # (INGEST_COUNTS_TOWARD_BUDGET). When on, reserve before any fetch/embed work
+    # (raises 429 if a limit is reached) and reconcile to the actual embedding
+    # cost on success / release on failure.
+    budget.enforce_rate_limit(user.user_id)
+    reservation_id = budget.reserve(user.user_id) if settings.ingest_counts_toward_budget else None
+
     supabase = get_supabase_client()
-    
+
     try:
         # Step 1: Insert initial supabase row
         ingestion_data = {
@@ -95,6 +105,22 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
             "sec_url": filing_10k["url"],
         }).eq("id", job_id).execute()
 
+        # Reconcile the reservation to the embedding cost. Exact embedding token
+        # counts aren't surfaced by the vector store, so estimate from chunk count
+        # (chars -> ~tokens); embeddings are output-free, priced by the embedding
+        # model. Cost is tiny, but it still counts against the shared budget.
+        if settings.ingest_counts_toward_budget:
+            est_tokens = int((chunks_10k + chunks_10q) * settings.chunk_size / 4)
+            budget.record(
+                reservation_id,
+                user_id=user.user_id,
+                model=settings.embedding_model,
+                input_tokens=est_tokens,
+                output_tokens=0,
+                tokens_used=est_tokens,
+                query_id=job_id,
+            )
+
         extra = f" + 10-Q ({tenq_date}, {chunks_10q} chunks)" if chunks_10q else ""
         return IngestResponse(
             status="success",
@@ -103,8 +129,10 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
             message=f"Successfully ingested 10-K for {ticker} (filed {filing_10k['filing_date']}, {chunks_10k} chunks){extra}",
             chunks_processed=chunks_10k + chunks_10q,
         )
-        
+
     except HTTPException:
+        budget.release(reservation_id)
         raise
     except Exception as e:
+        budget.release(reservation_id)
         raise HTTPException(status_code=500, detail=f"Unexpected error during ingestion: {str(e)}")

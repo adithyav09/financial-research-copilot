@@ -9,7 +9,6 @@ import FirstRunNotice, { NOTICE_STORAGE_KEY } from "./components/FirstRunNotice"
 import HowAnswersPanel from "./components/HowAnswersPanel";
 import LoginPage from "./components/LoginPage";
 import LandingPage from "./components/LandingPage";
-import PendingApprovalPage from "./components/PendingApprovalPage";
 import AdminDashboard from "./components/AdminDashboard";
 import { useAuth } from "./context/AuthContext";
 import { api, needsIngestion } from "./api/client";
@@ -258,20 +257,8 @@ export default function App() {
     );
   }
 
-  if (profile?.role === "pending") {
-    return <PendingApprovalPage />;
-  }
-
-  if (profile?.role === "denied") {
-    return (
-      <div className="min-h-screen bg-paper flex items-center justify-center px-4">
-        <div className="text-center space-y-3">
-          <p className="text-ink font-semibold">Access denied</p>
-          <p className="text-sm text-ink-soft">Your access request was not approved.</p>
-        </div>
-      </div>
-    );
-  }
+  // Access approval was removed: any authenticated user with a loaded profile
+  // gets the full app immediately (usage is bounded by the shared budget).
 
   const handleNewChat = () => {
     setMessages([]);

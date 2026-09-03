@@ -68,18 +68,22 @@ The Thesis redesign replaced the 7 `AnalysisMode` personas with a `Depth` enum (
 
 Filing citations carry `chunk_index` + `filing_type`; `GET /api/filing/{ticker}/passage` (`routes/filing.py`) returns the cited chunk ± neighbors from `document_chunks`. Clicking an inline citation badge or filing source chip opens `FilingViewer.tsx` beside the chat. Live-data citations (news/quotes) keep external links.
 
-### Auth (Supabase, role-gated)
+### Auth (Supabase) + shared usage budget
 
-`app/core/auth.py`: bearer token is verified by calling Supabase `/auth/v1/user` (no local JWT decoding). The user's role is loaded from the `profiles` table per request. Roles: `pending` → `approved`/`admin`. FastAPI dependencies:
+`app/core/auth.py`: bearer token is verified by calling Supabase `/auth/v1/user` (no local JWT decoding). A `profiles` row is loaded (auto-created on first sight). **There is no access-approval step** — every authenticated user can use the copilot immediately. FastAPI dependencies:
 - `get_current_user` — any authenticated user
-- `require_approved` — gates `/query` and `/ingest` (403 if pending)
-- `require_admin` — admin-only endpoints
+- `require_approved` — kept as an alias; now just requires a valid session (no role gate). Gates `/query`, `/ingest`, etc.
+- `require_admin` — admin-only endpoints (role `admin`)
 
-Approved users have a `token_budget` in `profiles` and a cap of `settings.max_token_budget_grant` on any grant an admin can make. **`token_usage` is the source of truth for consumption** (`supabase/migrations/token_usage_ledger.sql`) — every query inserts one ledger row (`user_id`, `tokens_used`, `model`); `get_tokens_consumed`/`get_all_token_totals` Postgres RPCs sum it per-user or for everyone at once. `profiles.tokens_consumed` is legacy and no longer written or read. `require_approved` in `query.py` rejects a query with 403 when `AuthenticatedUser.is_over_budget` (`tokens_consumed >= token_budget`) — checked before any LLM call.
+Usage is bounded by **one shared application-wide monthly dollar budget** plus per-user safeguards, not per-user token budgets (`app/core/budget.py`, migration `003_shared_monthly_budget.sql`). Before each model call, `/query` enforces, in order: (1) per-user **rate limit** (in-memory sliding window), (2) `reserve_budget()` — a `pg_advisory_xact_lock`-guarded RPC that atomically checks the **global monthly** + **per-user daily** caps and pre-charges a conservative estimate, so concurrent requests can't overspend. After the call, `record()` reconciles the reservation to the **actual cost** (from real input/output token metadata, priced separately via `budget.cost_usd` → config overrides or `observability.estimate_cost_usd`). Spend is stored on `token_usage.cost_usd`; the monthly/daily totals are **derived by summing the current UTC month/day** — they reset automatically, no cron. Limits are env-configured (`MONTHLY_BUDGET_USD`, `USER_DAILY_BUDGET_USD`, `USER_DAILY_TOKEN_LIMIT`, `RATE_LIMIT_PER_MINUTE`, `MAX_COST_PER_QUERY_USD`). Limit errors return **429** with a friendly message and no internal cost detail. `/ingest` is gated the same way (rate limit always; budget when `INGEST_COUNTS_TOWARD_BUDGET`). Two policy flags are explicit + configurable: `BUDGET_FAIL_OPEN` (on a budget-infra error, allow+record vs. 503) and `INGEST_COUNTS_TOWARD_BUDGET`. Every limit decision emits a `budget_denied` event + `budget.denied` metric.
+
+### Online evaluators (`app/core/online_eval.py`)
+
+After each answer, cheap **non-LLM** checks emit quality signals into the existing observability layer (logs + `GET /api/metrics`): retrieval-drift distributions (`eval.retrieved_chunks`, `eval.citations`) and regression tripwires (`eval.regression{check=empty_retrieval|no_citations|structured_parse_failed|possible_advice}`, plus `eval.total` for a pass-rate). No model calls, no cost; feature-flagged via `ONLINE_EVAL_ENABLED`; fully best-effort (never affects the response). The offline RAGAS + retrieval-baseline harness in `backend/evals/` remains the deeper, batch evaluator.
 
 ### Admin dashboard
 
-`AdminDashboard.tsx` (opened via the navbar profile menu, admin role only) lists all users with role + usage, handles the pending-access-request approve/deny flow, lets an admin grant a token budget or change a role directly (`/api/auth/set-role/{user_id}`), and shows an aggregate usage summary. All admin routes in `routes/auth.py` are gated by `require_admin` and enforce `max_token_budget_grant` server-side (`_validate_token_budget`) — the cap can't be bypassed by any client.
+`AdminDashboard.tsx` (navbar profile menu, admin role only) shows the **shared monthly budget status** (spent / limit / remaining, request count, active per-user safeguards) and the user list with each user's **this-month spend** for abuse-spotting, plus set-role (admin vs. user). Backed by `/api/auth/usage-summary` (`get_budget_status` RPC) and `/api/auth/users` (`get_user_month_spend` RPC), both gated by `require_admin`. The old approve/deny, grant-tokens, and pending-request flows were removed.
 
 ### Frontend flow
 

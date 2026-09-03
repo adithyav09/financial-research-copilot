@@ -1,27 +1,23 @@
 """
-Auth routes: user profile, access requests, and admin approval.
-OAuth sign-in itself is handled client-side by the Supabase JS SDK —
-these endpoints manage the post-auth profile and access request flow.
+Auth routes: user profile + admin visibility.
+
+Access approval was removed — every authenticated user can use the copilot
+immediately (see app/core/auth.require_approved). Usage is bounded by a shared
+application-wide monthly budget + per-user daily/rate limits (app/core/budget.py),
+so there is no per-user token budget, no access-request queue, and no approve/deny.
+OAuth sign-in itself is handled client-side by the Supabase JS SDK.
 """
 
 from typing import Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.auth import (
-    AuthenticatedUser,
-    get_all_token_totals,
-    get_current_user,
-    get_tokens_consumed,
-    require_admin,
-)
+from app.core import budget
+from app.core.auth import AuthenticatedUser, get_current_user, require_admin
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.models.schemas import (
-    AccessRequestPayload,
-    AdminApprovePayload,
     AdminUserListResponse,
-    GrantTokensPayload,
     SetRolePayload,
     UsageSummaryResponse,
     UserProfileResponse,
@@ -29,164 +25,52 @@ from app.models.schemas import (
 
 router = APIRouter()
 
-VALID_ROLES = {"pending", "approved", "admin", "denied"}
-
-
-def _validate_token_budget(token_budget: int) -> None:
-    """Admins can never set a user's token_budget above the configured cap."""
-    if token_budget > settings.max_token_budget_grant:
-        raise HTTPException(
-            status_code=400,
-            detail=f"token_budget cannot exceed max_token_budget_grant ({settings.max_token_budget_grant}).",
-        )
+VALID_ROLES = {"user", "approved", "admin"}
 
 
 @router.get("/auth/me", response_model=UserProfileResponse)
 async def get_me(user: AuthenticatedUser = Depends(get_current_user)) -> UserProfileResponse:
-    """
-    Return the current user's profile, including role and token usage.
-    Used by the frontend to determine what UI to show after sign-in.
-    """
+    """The current user's profile (identity + role). No per-user budget anymore."""
     supabase = get_supabase_client()
     result = (
         supabase.table("profiles")
-        .select("id, email, role, token_budget, tokens_consumed, created_at")
+        .select("id, email, role, created_at")
         .eq("id", user.user_id)
         .single()
         .execute()
     )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Profile not found.")
-    p = result.data
+    p = result.data or {"id": user.user_id, "email": user.email, "role": user.role}
     return UserProfileResponse(
         user_id=p["id"],
-        email=p["email"],
-        role=p["role"],
-        token_budget=p.get("token_budget", 50000),
-        tokens_consumed=get_tokens_consumed(user.user_id),
+        email=p.get("email"),
+        role=p.get("role", "approved"),
         created_at=p.get("created_at"),
     )
 
 
-@router.post("/auth/request-access", status_code=status.HTTP_201_CREATED)
-async def request_access(
-    payload: AccessRequestPayload,
-    user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
-    """
-    Submit an access request for a pending user.
-    Idempotent — silently succeeds if a request already exists.
-    """
-    supabase = get_supabase_client()
-
-    # Check for existing request to keep this idempotent
-    existing = (
-        supabase.table("access_requests")
-        .select("id, status")
-        .eq("user_id", user.user_id)
-        .execute()
-    )
-    if existing.data:
-        return {"message": "Access request already submitted.", "status": existing.data[0]["status"]}
-
-    supabase.table("access_requests").insert({
-        "user_id": user.user_id,
-        "email": user.email,
-        "use_case": payload.use_case,
-        "investor_type": payload.investor_type,
-        "status": "pending",
-    }).execute()
-
-    return {"message": "Access request submitted. You will be notified when approved."}
-
-
-@router.post("/auth/approve/{user_id}", dependencies=[Depends(require_admin)])
-async def approve_user(
-    user_id: str,
-    payload: AdminApprovePayload,
-) -> dict:
-    """
-    Admin: approve or deny a user. Updates both profiles and access_requests tables.
-
-    Args:
-        user_id: UUID of the user to approve/deny
-        payload: Contains action ("approved" | "denied") and optional token_budget
-    """
-    if payload.action not in ("approved", "denied"):
-        raise HTTPException(status_code=400, detail="action must be 'approved' or 'denied'.")
-
-    supabase = get_supabase_client()
-
-    profile_update: dict = {"role": payload.action}
-    if payload.action == "approved" and payload.token_budget is not None:
-        _validate_token_budget(payload.token_budget)
-        profile_update["token_budget"] = payload.token_budget
-
-    supabase.table("profiles").update(profile_update).eq("id", user_id).execute()
-    supabase.table("access_requests").update({"status": payload.action}).eq("user_id", user_id).execute()
-
-    return {"message": f"User {user_id} has been {payload.action}."}
-
-
-@router.get("/auth/pending-requests", dependencies=[Depends(require_admin)])
-async def list_pending_requests() -> dict:
-    """
-    Admin: list all pending access requests with user emails.
-    """
-    supabase = get_supabase_client()
-    result = (
-        supabase.table("access_requests")
-        .select("id, user_id, email, use_case, investor_type, status, created_at")
-        .eq("status", "pending")
-        .order("created_at", desc=False)
-        .execute()
-    )
-    return {"requests": result.data or []}
-
-
 @router.get("/auth/users", response_model=AdminUserListResponse, dependencies=[Depends(require_admin)])
 async def list_users() -> AdminUserListResponse:
-    """
-    Admin: list every user profile with role and token usage.
-    """
+    """Admin: every user with role + this-month spend (for abuse spotting)."""
     supabase = get_supabase_client()
     result = (
         supabase.table("profiles")
-        .select("id, email, role, token_budget, tokens_consumed, created_at")
+        .select("id, email, role, created_at")
         .order("created_at", desc=True)
         .execute()
     )
-    totals = get_all_token_totals()
+    spend = budget.user_month_spend()
     users = [
         UserProfileResponse(
             user_id=p["id"],
             email=p.get("email"),
-            role=p["role"],
-            token_budget=p.get("token_budget", 50000),
-            tokens_consumed=totals.get(p["id"], 0),
+            role=p.get("role", "approved"),
             created_at=p.get("created_at"),
+            month_spent_usd=spend.get(p["id"], {}).get("spent_usd", 0.0),
+            month_requests=spend.get(p["id"], {}).get("requests", 0),
         )
         for p in (result.data or [])
     ]
     return AdminUserListResponse(users=users)
-
-
-@router.post("/auth/grant-tokens/{user_id}", dependencies=[Depends(require_admin)])
-async def grant_tokens(user_id: str, payload: GrantTokensPayload) -> dict:
-    """
-    Admin: set a user's token_budget, subject to the max_token_budget_grant cap.
-    """
-    _validate_token_budget(payload.token_budget)
-    supabase = get_supabase_client()
-    result = (
-        supabase.table("profiles")
-        .update({"token_budget": payload.token_budget})
-        .eq("id", user_id)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="User not found.")
-    return {"message": f"token_budget for {user_id} set to {payload.token_budget}."}
 
 
 @router.post("/auth/set-role/{user_id}")
@@ -195,10 +79,8 @@ async def set_role(
     payload: SetRolePayload,
     admin: AuthenticatedUser = Depends(require_admin),
 ) -> dict:
-    """
-    Admin: change a user's role directly (pending/approved/admin/denied),
-    separate from the initial approve/deny flow.
-    """
+    """Admin: change a user's role. The only meaningful distinction now is admin
+    vs. everyone else (admins see this dashboard); regular roles are equivalent."""
     if payload.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"role must be one of {sorted(VALID_ROLES)}.")
     if user_id == admin.user_id and payload.role != "admin":
@@ -213,28 +95,23 @@ async def set_role(
 
 @router.get("/auth/usage-summary", response_model=UsageSummaryResponse, dependencies=[Depends(require_admin)])
 async def usage_summary() -> UsageSummaryResponse:
-    """
-    Admin: aggregate token usage across all users, from our own tracked totals
-    (not the OpenAI usage API — profiles.tokens_consumed is what we bill against).
-    """
+    """Admin: global monthly budget status + active per-user safeguards."""
     supabase = get_supabase_client()
-    result = supabase.table("profiles").select("id, role, token_budget").execute()
-    rows = result.data or []
-    totals = get_all_token_totals()
+    rows = (supabase.table("profiles").select("id, role").execute()).data or []
 
     by_role: Dict[str, int] = {}
-    total_consumed = 0
-    total_budget = 0
     for r in rows:
-        role = r.get("role", "unknown")
+        role = r.get("role", "user")
         by_role[role] = by_role.get(role, 0) + 1
-        total_consumed += totals.get(r["id"], 0)
-        total_budget += r.get("token_budget", 0) or 0
 
+    status = budget.budget_status()
     return UsageSummaryResponse(
         total_users=len(rows),
-        total_tokens_consumed=total_consumed,
-        total_token_budget=total_budget,
         by_role=by_role,
-        max_token_budget_grant=settings.max_token_budget_grant,
+        month_spent_usd=status["month_spent_usd"],
+        monthly_budget_usd=status["monthly_budget_usd"],
+        month_remaining_usd=status["month_remaining_usd"],
+        month_requests=status["month_requests"],
+        user_daily_budget_usd=settings.user_daily_budget_usd,
+        rate_limit_per_minute=settings.rate_limit_per_minute,
     )

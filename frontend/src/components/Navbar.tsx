@@ -29,7 +29,6 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
   const roleBadgeColor = profile?.role === "admin" ? "text-accent-ink bg-accent-ink-soft border-accent-ink"
     : profile?.role === "approved" ? "text-ledger-pos bg-ledger-pos/10 border-ledger-pos/30"
     : "text-ink-faint bg-ink-faint/10 border-rule";
-  const budgetPct = profile ? Math.min(100, (profile.tokens_consumed / profile.token_budget) * 100) : 0;
 
   return (
     <nav className="flex items-center justify-between px-6 py-3 border-b border-rule bg-paper-raised shrink-0">
@@ -93,23 +92,6 @@ export default function Navbar({ onToggleHistory, showHistory, onShowHowAnswersA
                         {profile.role}
                       </span>
                     </div>
-                  </div>
-                </div>
-
-                <div className="px-4 py-3 border-b border-rule space-y-1.5">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-ink-soft">Token Budget</span>
-                    <span className="text-ink font-mono">
-                      {profile.tokens_consumed.toLocaleString()} / {profile.token_budget.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="w-full h-1.5 bg-paper rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        budgetPct > 90 ? "bg-ledger-neg" : budgetPct > 70 ? "bg-accent-ink" : "bg-ledger-pos"
-                      }`}
-                      style={{ width: `${budgetPct}%` }}
-                    />
                   </div>
                 </div>
 

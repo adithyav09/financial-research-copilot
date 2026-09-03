@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, Loader2, ShieldCheck, Users, X } from "lucide-react";
+import { ArrowLeft, Loader2, ShieldCheck, Users, Wallet } from "lucide-react";
 import { api, ApiError } from "../api/client";
-import type { AdminUser, PendingAccessRequest, UsageSummary } from "../types";
+import type { AdminUser, UsageSummary } from "../types";
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -10,30 +10,19 @@ interface AdminDashboardProps {
 const roleBadgeColor = (role: string) =>
   role === "admin"
     ? "text-accent-ink bg-accent-ink-soft border-accent-ink"
-    : role === "approved"
-      ? "text-ledger-pos bg-ledger-pos/10 border-ledger-pos/30"
-      : role === "denied"
-        ? "text-ledger-neg bg-ledger-neg/10 border-ledger-neg/30"
-        : "text-ink-faint bg-ink-faint/10 border-rule";
+    : "text-ink-faint bg-ink-faint/10 border-rule";
 
-function TokenBar({ consumed, budget }: { consumed: number; budget: number }) {
-  const pct = budget > 0 ? Math.min(100, (consumed / budget) * 100) : 0;
+const usd = (n: number) => `$${n.toFixed(2)}`;
+
+/** Global monthly budget bar (shared across all users). */
+function BudgetBar({ spent, limit }: { spent: number; limit: number }) {
+  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
   return (
-    <div className="space-y-1 min-w-[140px]">
-      <div className="flex justify-between text-[11px]">
-        <span className="text-ink-faint">Usage</span>
-        <span className="text-ink-soft font-mono">
-          {consumed.toLocaleString()} / {budget.toLocaleString()}
-        </span>
-      </div>
-      <div className="w-full h-1.5 bg-rule rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${
-            pct > 90 ? "bg-ledger-neg" : pct > 70 ? "bg-accent-ink" : "bg-ledger-pos"
-          }`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+    <div className="w-full h-2 bg-rule overflow-hidden">
+      <div
+        className={`h-full transition-all ${pct > 90 ? "bg-ledger-neg" : pct > 70 ? "bg-accent-ink" : "bg-ledger-pos"}`}
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }
@@ -41,11 +30,8 @@ function TokenBar({ consumed, budget }: { consumed: number; budget: number }) {
 export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [pending, setPending] = useState<PendingAccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [pendingDrafts, setPendingDrafts] = useState<Record<string, string>>({});
-  const [grantDrafts, setGrantDrafts] = useState<Record<string, string>>({});
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [busyRows, setBusyRows] = useState<Record<string, boolean>>({});
@@ -53,13 +39,8 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
   const loadAll = async () => {
     setLoadError(null);
     try {
-      const [u, p, list] = await Promise.all([
-        api.adminUsageSummary(),
-        api.adminPendingRequests(),
-        api.adminListUsers(),
-      ]);
+      const [u, list] = await Promise.all([api.adminUsageSummary(), api.adminListUsers()]);
       setUsage(u);
-      setPending(p.requests);
       setUsers(list.users);
     } catch (err: unknown) {
       setLoadError(err instanceof Error ? err.message : "Failed to load admin data");
@@ -80,91 +61,26 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
       return next;
     });
 
-  const withBusy = async (key: string, fn: () => Promise<void>) => {
-    setBusyRows(prev => ({ ...prev, [key]: true }));
-    try {
-      await fn();
-    } finally {
-      setBusyRows(prev => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    }
-  };
-
-  const cap = usage?.max_token_budget_grant ?? Infinity;
-
-  const handleApprove = (req: PendingAccessRequest) => {
-    const raw = pendingDrafts[req.user_id] ?? "50000";
-    const tokenBudget = Number(raw);
-    if (!Number.isFinite(tokenBudget) || tokenBudget < 0) {
-      setRowError(req.user_id, "Enter a valid token budget.");
-      return;
-    }
-    if (tokenBudget > cap) {
-      setRowError(req.user_id, `Cannot exceed the max grant of ${cap.toLocaleString()}.`);
-      return;
-    }
-    setRowError(req.user_id, null);
-    withBusy(req.user_id, async () => {
-      try {
-        await api.adminApprove(req.user_id, { action: "approved", token_budget: tokenBudget });
-        await loadAll();
-      } catch (err: unknown) {
-        setRowError(req.user_id, err instanceof ApiError ? err.message : "Approval failed.");
-      }
-    });
-  };
-
-  const handleDeny = (req: PendingAccessRequest) => {
-    setRowError(req.user_id, null);
-    withBusy(req.user_id, async () => {
-      try {
-        await api.adminApprove(req.user_id, { action: "denied" });
-        await loadAll();
-      } catch (err: unknown) {
-        setRowError(req.user_id, err instanceof ApiError ? err.message : "Denial failed.");
-      }
-    });
-  };
-
-  const handleGrant = (u: AdminUser) => {
-    const key = `grant:${u.user_id}`;
-    const raw = grantDrafts[u.user_id] ?? String(u.token_budget);
-    const tokenBudget = Number(raw);
-    if (!Number.isFinite(tokenBudget) || tokenBudget < 0) {
-      setRowError(key, "Enter a valid token budget.");
-      return;
-    }
-    if (tokenBudget > cap) {
-      setRowError(key, `Cannot exceed the max grant of ${cap.toLocaleString()}.`);
-      return;
-    }
-    setRowError(key, null);
-    withBusy(key, async () => {
-      try {
-        await api.adminGrantTokens(u.user_id, tokenBudget);
-        await loadAll();
-      } catch (err: unknown) {
-        setRowError(key, err instanceof ApiError ? err.message : "Grant failed.");
-      }
-    });
-  };
-
   const handleSetRole = (u: AdminUser) => {
     const key = `role:${u.user_id}`;
     const role = roleDrafts[u.user_id] ?? u.role;
     if (role === u.role) return;
     setRowError(key, null);
-    withBusy(key, async () => {
+    setBusyRows(prev => ({ ...prev, [key]: true }));
+    (async () => {
       try {
         await api.adminSetRole(u.user_id, role);
         await loadAll();
       } catch (err: unknown) {
         setRowError(key, err instanceof ApiError ? err.message : "Role change failed.");
+      } finally {
+        setBusyRows(prev => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
       }
-    });
+    })();
   };
 
   if (loading) {
@@ -198,92 +114,34 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
           </div>
         )}
 
-        {/* Usage summary */}
+        {/* Shared monthly budget */}
         {usage && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="bg-paper-raised border border-rule px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Total Users</p>
-              <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_users}</p>
-            </div>
-            <div className="bg-paper-raised border border-rule px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Tokens Consumed</p>
-              <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_tokens_consumed.toLocaleString()}</p>
-            </div>
-            <div className="bg-paper-raised border border-rule px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">Budget Allocated</p>
-              <p className="mt-1 font-mono text-xl font-bold text-ink">{usage.total_token_budget.toLocaleString()}</p>
-            </div>
-            <div className="bg-paper-raised border border-rule px-4 py-3.5">
-              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em]">By Role</p>
-              <p className="mt-1.5 text-xs text-ink-soft flex flex-wrap gap-1.5">
-                {Object.entries(usage.by_role).map(([role, count]) => (
-                  <span key={role} className={`inline-block px-1.5 py-0.5 text-[10.5px] font-semibold border ${roleBadgeColor(role)}`}>
-                    {role}: {count}
-                  </span>
-                ))}
+          <div className="bg-paper-raised border border-rule px-5 py-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10.5px] font-semibold text-ink-faint uppercase tracking-[.13em] flex items-center gap-1.5">
+                <Wallet className="w-3.5 h-3.5" /> Shared monthly budget
               </p>
+              <span className="font-mono text-[12px] text-ink-soft">{usage.month_requests} requests this month</span>
             </div>
+            <div className="flex items-end justify-between">
+              <p className="font-mono text-2xl font-bold text-ink">
+                {usd(usage.month_spent_usd)}
+                <span className="text-sm font-normal text-ink-faint"> / {usd(usage.monthly_budget_usd)}</span>
+              </p>
+              <p className="font-mono text-[12px] text-ledger-pos">{usd(usage.month_remaining_usd)} left</p>
+            </div>
+            <BudgetBar spent={usage.month_spent_usd} limit={usage.monthly_budget_usd} />
+            <p className="text-[11px] text-ink-faint">
+              Resets automatically on the 1st (UTC). Per-user safeguards: {usd(usage.user_daily_budget_usd)}/day
+              {usage.rate_limit_per_minute > 0 ? ` · ${usage.rate_limit_per_minute} requests/min` : ""}.
+            </p>
           </div>
         )}
 
-        {/* Pending requests */}
+        {/* All users */}
         <div className="bg-paper-raised border border-rule overflow-hidden">
           <div className="px-4 py-3 border-b border-rule flex items-center gap-2">
             <Users className="w-3.5 h-3.5 text-ink-faint" />
-            <h2 className="text-[13px] font-semibold text-ink">Pending Requests ({pending.length})</h2>
-          </div>
-          {pending.length === 0 ? (
-            <p className="px-4 py-6 text-[12.5px] text-ink-faint text-center">No pending requests.</p>
-          ) : (
-            <div className="divide-y divide-rule">
-              {pending.map(req => (
-                <div key={req.user_id} className="px-4 py-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] text-ink truncate">{req.email}</p>
-                      <p className="text-[11px] text-ink-faint mt-0.5">
-                        {req.investor_type} · {req.use_case}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="50000"
-                        value={pendingDrafts[req.user_id] ?? ""}
-                        onChange={e =>
-                          setPendingDrafts(prev => ({ ...prev, [req.user_id]: e.target.value }))
-                        }
-                        className="w-24 px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
-                      />
-                      <button
-                        onClick={() => handleApprove(req)}
-                        disabled={busyRows[req.user_id]}
-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-ledger-pos/10 hover:bg-ledger-pos/20 border border-ledger-pos/30 text-ledger-pos text-[11.5px] font-medium transition-all disabled:opacity-50"
-                      >
-                        <Check className="w-3 h-3" /> Approve
-                      </button>
-                      <button
-                        onClick={() => handleDeny(req)}
-                        disabled={busyRows[req.user_id]}
-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-ledger-neg/10 hover:bg-ledger-neg/20 border border-ledger-neg/30 text-ledger-neg text-[11.5px] font-medium transition-all disabled:opacity-50"
-                      >
-                        <X className="w-3 h-3" /> Deny
-                      </button>
-                    </div>
-                  </div>
-                  {rowErrors[req.user_id] && (
-                    <p className="text-[11px] text-ledger-neg">{rowErrors[req.user_id]}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* All users */}
-        <div className="bg-paper-raised border border-rule overflow-hidden">
-          <div className="px-4 py-3 border-b border-rule">
             <h2 className="text-[13px] font-semibold text-ink">All Users ({users.length})</h2>
           </div>
           <div className="divide-y divide-rule">
@@ -296,48 +154,30 @@ export default function AdminDashboard({ onBack }: AdminDashboardProps) {
                       {u.role}
                     </span>
                   </div>
-                  <TokenBar consumed={u.tokens_consumed} budget={u.token_budget} />
+                  <div className="font-mono text-[11px] text-ink-soft min-w-[150px] text-right">
+                    {usd(u.month_spent_usd)} this month · {u.month_requests} req
+                  </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <select
                       value={roleDrafts[u.user_id] ?? u.role}
                       onChange={e => setRoleDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
                       className="px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink capitalize focus:outline-none focus:border-accent-ink transition-colors"
                     >
-                      {["pending", "approved", "admin", "denied"].map(r => (
+                      {["user", "admin"].map(r => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
                     <button
                       onClick={() => handleSetRole(u)}
                       disabled={busyRows[`role:${u.user_id}`] || (roleDrafts[u.user_id] ?? u.role) === u.role}
-                      className="px-2.5 py-1.5 bg-accent-ink-soft hover:opacity-80 border border-accent-ink text-accent-ink text-[11.5px] font-medium transition-all disabled:opacity-50"
-                    >
-                      Set Role
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder={String(u.token_budget)}
-                      value={grantDrafts[u.user_id] ?? ""}
-                      onChange={e => setGrantDrafts(prev => ({ ...prev, [u.user_id]: e.target.value }))}
-                      className="w-24 px-2 py-1.5 text-[11.5px] bg-paper border border-rule text-ink font-mono focus:outline-none focus:border-accent-ink transition-colors"
-                    />
-                    <button
-                      onClick={() => handleGrant(u)}
-                      disabled={busyRows[`grant:${u.user_id}`]}
                       className="px-2.5 py-1.5 bg-accent-ink hover:opacity-90 border border-accent-ink text-paper text-[11.5px] font-medium transition-all disabled:opacity-50"
                     >
-                      Save
+                      Set Role
                     </button>
                   </div>
                 </div>
                 {rowErrors[`role:${u.user_id}`] && (
                   <p className="text-[11px] text-ledger-neg">{rowErrors[`role:${u.user_id}`]}</p>
-                )}
-                {rowErrors[`grant:${u.user_id}`] && (
-                  <p className="text-[11px] text-ledger-neg">{rowErrors[`grant:${u.user_id}`]}</p>
                 )}
               </div>
             ))}
