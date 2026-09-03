@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.core import observability as obs
+from app.core import ratelimit
 from app.models.schemas import HealthResponse
 
 router = APIRouter()
@@ -8,7 +9,25 @@ router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
+    """Liveness — the process is up and serving. Never depends on Redis, so a
+    Redis blip can't restart the app (the limiter degrades instead)."""
     return HealthResponse(status="healthy", version="0.1.0")
+
+
+@router.get("/health/ready")
+async def readiness_check():
+    """Readiness — dependency status (distinct from liveness). Reports the rate-
+    limit backend: `redis` (distributed) when configured and reachable, else
+    `in_memory` (single-instance / degraded). Returns 200 either way; the field is
+    for dashboards/load-balancers, not a hard gate (the app still functions)."""
+    if not ratelimit.redis_enabled():
+        return {"status": "ready", "rate_limit_backend": "in_memory"}
+    healthy = await ratelimit.redis_healthy()
+    return {
+        "status": "ready",
+        "rate_limit_backend": "redis" if healthy else "in_memory",
+        "redis_reachable": healthy,
+    }
 
 
 @router.get("/metrics")

@@ -5,6 +5,7 @@ from app.core.tracing import init_tracing
 init_tracing()
 
 import time  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI, Request  # noqa: E402  (import after init_tracing by design)
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
@@ -13,13 +14,26 @@ from app.api.routes import (  # noqa: E402
     health, ingest, query, status, market_data, auth, suggestions, history, news, tickers, filing,
 )
 from app.core import observability as obs  # noqa: E402
+from app.core import ratelimit  # noqa: E402
 
 obs.configure_logging()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Open the shared Redis connection pool for distributed rate limiting (no-op
+    # if REDIS_URL is unset — the limiter runs process-local). Non-fatal on a cold
+    # Redis; the limiter retries per request and falls back per RATE_LIMIT_FAIL_MODE.
+    await ratelimit.init_redis()
+    yield
+    await ratelimit.close_redis()
+
 
 app = FastAPI(
     title="Financial Research Copilot",
     description="RAG-powered SEC filing analysis with configurable research modes",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Header clients/proxies use to supply or read the trace id, so a UI result can be

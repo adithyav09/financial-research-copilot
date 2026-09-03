@@ -5,7 +5,8 @@ spend, plus lightweight per-user safeguards (daily cap + rate limit) so a single
 user can't drain it.
 
 Enforcement order, before each model call (see routes/query.py):
-  1. per-user rate limit   (in-memory sliding window, per process)
+  1. per-user rate limit   (Redis-backed distributed sliding window with a
+                              process-local fallback — see app/core/ratelimit.py)
   2. reserve()             -> concurrency-safe DB reservation that atomically
                               checks the global monthly + per-user daily caps and
                               pre-charges a conservative estimate, so simultaneous
@@ -19,72 +20,22 @@ count. Limits and pricing are configured in app/core/config.py.
 
 from __future__ import annotations
 
-import time
-from collections import defaultdict, deque
-
 from fastapi import HTTPException
 
 from app.core import observability as obs
 from app.core.config import settings
 from app.core.database import get_supabase_client
 
-# User-facing messages — deliberately free of internal cost/security detail.
-_MESSAGES = {
-    "rate": "You're sending requests too quickly. Please wait a few seconds and try again.",
-    "daily": "You've reached today's usage limit for this demo. Please try again tomorrow.",
-    "monthly": "The shared monthly demo budget has been reached. Please check back next month.",
-}
-
-
-def _limit_error(reason: str) -> HTTPException:
-    # 429 for every quota/rate limit; the reason stays server-side only.
-    return HTTPException(status_code=429, detail=_MESSAGES.get(reason, _MESSAGES["monthly"]))
-
-
-# --------------------------------------------------------------------------- #
-# Per-user rate limit (in-memory sliding window; per process/instance)
-# --------------------------------------------------------------------------- #
-
-class RateLimiter:
-    def __init__(self, per_minute: int, window: float = 60.0) -> None:
-        self.per_minute = per_minute
-        self.window = window
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
-
-    def check(self, user_id: str, now: float | None = None) -> bool:
-        """Record a hit and return False if the user is over the per-minute rate."""
-        if self.per_minute <= 0:
-            return True
-        now = time.monotonic() if now is None else now
-        q = self._hits[user_id]
-        cutoff = now - self.window
-        while q and q[0] < cutoff:
-            q.popleft()
-        if len(q) >= self.per_minute:
-            return False
-        q.append(now)
-        return True
-
-    def reset(self) -> None:
-        self._hits.clear()
-
-
-rate_limiter = RateLimiter(settings.rate_limit_per_minute)
-
-
-def _emit_denied(reason: str) -> None:
-    """Structured signal + metric whenever a request is blocked by a limit, so
-    limit events are visible in logs/metrics without leaking cost internals."""
-    obs.metrics.counter("budget.denied").add(1, {"reason": reason})
-    obs.log_event("budget_denied", component="budget", level="WARNING",
-                  success=False, reason=reason)
-
-
-def enforce_rate_limit(user_id: str) -> None:
-    if not rate_limiter.check(user_id):
-        _emit_denied("rate")
-        raise _limit_error("rate")
-
+# Rate limiting lives in its own module now (Redis-backed distributed limiter with
+# a process-local bounded fallback). Re-exported here so existing budget.* call
+# sites and the friendly-429 helpers keep working unchanged.
+from app.core.ratelimit import (  # noqa: F401
+    RateLimiter,
+    _emit_denied,
+    _limit_error,
+    enforce_rate_limit,
+    rate_limiter,
+)
 
 # --------------------------------------------------------------------------- #
 # Cost

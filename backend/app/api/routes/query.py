@@ -19,8 +19,9 @@ async def query_10k(request: QueryRequest, user: AuthenticatedUser = Depends(req
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question is required")
 
-    # Per-user rate limit (fast, before any DB/model work). Raises 429 if too fast.
-    budget.enforce_rate_limit(user.user_id)
+    # Per-user rate limit (distributed via Redis, before any DB/model work).
+    # Raises 429 (with Retry-After) if too fast.
+    await budget.enforce_rate_limit(user.user_id)
 
     # The backend is the single source of truth for live-vs-filing routing.
     # Live/news questions answer from Yahoo Finance only (no filing needed).
