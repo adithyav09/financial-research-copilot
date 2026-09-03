@@ -42,6 +42,19 @@ class Settings(BaseSettings):
     # --- Online evaluators (cheap, non-LLM per-request quality signals) ----------
     online_eval_enabled: bool = True
 
+    # --- Distributed rate limiting (Redis) --------------------------------------
+    # Redis makes the per-user rate limit correct across multiple app instances.
+    # Leave REDIS_URL blank for local/dev/test — the limiter falls back to a
+    # process-local limiter (single-instance only). Use rediss:// for TLS.
+    redis_url: str = ""                     # e.g. redis://localhost:6379/0 (blank = in-memory)
+    redis_namespace: str = "frc"            # key prefix, prevents cross-app collisions
+    redis_socket_timeout_ms: int = 100      # per-command timeout (keeps the hot path fast)
+    redis_connect_timeout_ms: int = 200
+    redis_max_connections: int = 10         # connection pool size
+    # Behavior when Redis errors/timeouts: local (process-local bounded fallback,
+    # DEGRADED not distributed) | closed (reject) | open (allow). Default 'local'.
+    rate_limit_fail_mode: str = "local"
+
     # Observability (structured logging + metrics). Works with no external infra.
     log_level: str = "INFO"          # DEBUG | INFO | WARNING | ERROR
     log_json: bool = True            # one JSON line per event (set False for dev)

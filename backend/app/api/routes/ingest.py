@@ -24,7 +24,7 @@ async def ingest_10k(request: IngestRequest, user: AuthenticatedUser = Depends(r
     # (INGEST_COUNTS_TOWARD_BUDGET). When on, reserve before any fetch/embed work
     # (raises 429 if a limit is reached) and reconcile to the actual embedding
     # cost on success / release on failure.
-    budget.enforce_rate_limit(user.user_id)
+    await budget.enforce_rate_limit(user.user_id)
     reservation_id = budget.reserve(user.user_id) if settings.ingest_counts_toward_budget else None
 
     supabase = get_supabase_client()

@@ -36,6 +36,15 @@ def _user(role="approved", uid="u1"):
     return AuthenticatedUser(user_id=uid, email="x@y.com", role=role)
 
 
+# enforce_rate_limit is async; these stand in for it in route tests.
+async def _allow(*a, **k):
+    return None
+
+
+async def _rate_deny(*a, **k):
+    raise budget._limit_error("rate", retry_after=60)
+
+
 # --------------------------------------------------------------------------- #
 # Rate limiter (in-memory, deterministic via injected clock)
 # --------------------------------------------------------------------------- #
@@ -177,7 +186,7 @@ class TestQueryRoute:
     def test_authenticated_user_needs_no_approval(self, monkeypatch):
         # A user whose role is NOT 'approved' (legacy 'pending') must still be served.
         app.dependency_overrides[require_approved] = lambda: _user(role="pending")
-        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", lambda uid: None)
+        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", _allow)
         monkeypatch.setattr("app.api.routes.query.budget.reserve", lambda uid: "res-1")
         monkeypatch.setattr("app.api.routes.query.budget.record", lambda *a, **k: 0.001)
 
@@ -193,7 +202,7 @@ class TestQueryRoute:
 
     def test_global_monthly_exhaustion_returns_429(self, monkeypatch):
         app.dependency_overrides[require_approved] = lambda: _user()
-        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", lambda uid: None)
+        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", _allow)
 
         def _deny(uid):
             raise budget._limit_error("monthly")
@@ -205,7 +214,7 @@ class TestQueryRoute:
 
     def test_daily_limit_exhaustion_returns_429(self, monkeypatch):
         app.dependency_overrides[require_approved] = lambda: _user()
-        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", lambda uid: None)
+        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", _allow)
 
         def _deny(uid):
             raise budget._limit_error("daily")
@@ -218,13 +227,13 @@ class TestQueryRoute:
     def test_rate_limit_returns_429(self, monkeypatch):
         app.dependency_overrides[require_approved] = lambda: _user()
 
-        def _rate(uid):
-            raise budget._limit_error("rate")
-        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", _rate)
+        monkeypatch.setattr("app.api.routes.query.budget.enforce_rate_limit", _rate_deny)
 
         resp = client.post("/api/query", json={"ticker": "AAPL", "question": "latest news?"})
         assert resp.status_code == 429
         assert "quickly" in resp.json()["detail"].lower()
+        # the Retry-After header must survive the trace middleware end-to-end
+        assert resp.headers.get("retry-after") == "60"
 
 
 class TestIngestRoute:
@@ -233,9 +242,7 @@ class TestIngestRoute:
     def test_ingest_rate_limited_before_any_work(self, monkeypatch):
         app.dependency_overrides[require_approved] = lambda: _user()
 
-        def _rate(uid):
-            raise budget._limit_error("rate")
-        monkeypatch.setattr("app.api.routes.ingest.budget.enforce_rate_limit", _rate)
+        monkeypatch.setattr("app.api.routes.ingest.budget.enforce_rate_limit", _rate_deny)
 
         resp = client.post("/api/ingest", json={"ticker": "AAPL"})
         assert resp.status_code == 429
@@ -243,7 +250,7 @@ class TestIngestRoute:
 
     def test_ingest_blocked_when_budget_exhausted(self, monkeypatch):
         app.dependency_overrides[require_approved] = lambda: _user()
-        monkeypatch.setattr("app.api.routes.ingest.budget.enforce_rate_limit", lambda uid: None)
+        monkeypatch.setattr("app.api.routes.ingest.budget.enforce_rate_limit", _allow)
 
         def _deny(uid):
             raise budget._limit_error("monthly")

@@ -1,0 +1,8 @@
+# Test-only dependencies (not needed to run the app).
+#   pip install -r requirements-dev.txt
+# fakeredis[lua] is a faithful in-process Redis (incl. atomic Lua via lupa) used to
+# test the distributed rate limiter's atomicity + multi-instance behavior without a
+# real Redis server. A real disposable Redis is preferred in CI when available.
+pytest>=8.0
+pytest-asyncio>=0.23
+fakeredis[lua]>=2.21
