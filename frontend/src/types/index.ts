@@ -181,32 +181,25 @@ export interface SuggestionsResponse {
 export interface AdminUser {
   user_id: string;
   email?: string;
-  role: "pending" | "approved" | "admin" | "denied";
-  token_budget: number;
-  tokens_consumed: number;
+  role: string;
   created_at?: string;
+  month_spent_usd: number;
+  month_requests: number;
 }
 
 export interface AdminUserListResponse {
   users: AdminUser[];
 }
 
-export interface PendingAccessRequest {
-  id: string;
-  user_id: string;
-  email: string;
-  use_case: string;
-  investor_type: string;
-  status: string;
-  created_at: string;
-}
-
 export interface UsageSummary {
   total_users: number;
-  total_tokens_consumed: number;
-  total_token_budget: number;
   by_role: Record<string, number>;
-  max_token_budget_grant: number;
+  month_spent_usd: number;
+  monthly_budget_usd: number;
+  month_remaining_usd: number;
+  month_requests: number;
+  user_daily_budget_usd: number;
+  rate_limit_per_minute: number;
 }
 
 export interface ChatMessage {

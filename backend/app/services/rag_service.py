@@ -696,6 +696,11 @@ async def query_filing(
             "answer": answer,
             "citations": citations,
             "tokens_used": tokens_used,
+            # Split token counts + cost so the shared-budget ledger can price
+            # prompt vs completion separately (see app/core/budget.py).
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "estimated_cost_usd": estimated_cost_usd,
             "structured": structured,
             "model": settings.llm_model,
             "trace_id": obs.get_trace_id(),

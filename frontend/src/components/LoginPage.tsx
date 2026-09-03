@@ -206,13 +206,13 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
         {/* After-sign-up explainer (design 1i right column) */}
         <div className="hidden md:block w-px bg-rule" />
         <div className="hidden md:flex w-[380px] shrink-0 flex-col justify-center">
-          <p className="mb-1 text-[10.5px] font-bold text-ink-soft uppercase tracking-[.13em]">After sign-up</p>
-          <h3 className="mb-4 font-serif text-lg font-semibold text-ink">You're in the review queue</h3>
+          <p className="mb-1 text-[10.5px] font-bold text-ink-soft uppercase tracking-[.13em]">Getting started</p>
+          <h3 className="mb-4 font-serif text-lg font-semibold text-ink">Research the moment you sign in</h3>
           <div className="flex flex-col">
             {[
               { state: "done", title: "Create your account", body: "Email + password, or Google/GitHub." },
-              { state: "active", title: "Access review — usually same day", body: "Each account gets a real AI budget, so access is approved manually to keep the free tier fast and abuse-free. You'll get an email." },
-              { state: "todo", title: "Start researching", body: "Full access with a personal token budget." },
+              { state: "done", title: "You're in — no approval needed", body: "Every account can use the copilot right away." },
+              { state: "active", title: "Ask about any public company", body: "Answers come from SEC filings + live market data, with citations you can open." },
             ].map((step, i, arr) => (
               <div key={step.title} className="flex gap-3">
                 <div className="flex flex-col items-center">

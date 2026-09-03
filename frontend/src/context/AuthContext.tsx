@@ -2,14 +2,12 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
-export type UserRole = "pending" | "approved" | "admin" | "denied";
+export type UserRole = "user" | "approved" | "admin" | "pending" | "denied";
 
 export interface UserProfile {
   user_id: string;
   email: string | null;
   role: UserRole;
-  token_budget: number;
-  tokens_consumed: number;
 }
 
 interface AuthState {
@@ -47,8 +45,6 @@ async function fetchProfile(_userId: string, accessToken: string): Promise<UserP
       user_id: data.user_id,
       email: data.email,
       role: data.role as UserRole,
-      token_budget: data.token_budget ?? 50000,
-      tokens_consumed: data.tokens_consumed ?? 0,
     };
   } catch (e) {
     console.error("fetchProfile exception:", e);
